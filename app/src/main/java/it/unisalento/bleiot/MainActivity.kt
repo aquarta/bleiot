@@ -423,9 +423,19 @@ class MainActivity : ComponentActivity() {
             } else {
                 // For older Android versions
                 val value = characteristic.value
+                Log.w(TAG, "onServicesDiscovered received: ${characteristic.uuid.toString()} - $value - ${gatt.device} ${gatt.device.address}")
                 if (characteristic.uuid == BLUENRG_MS_ENV_CHARACTERISTIC_UUID) {
                     val data = parseTemperatureDeta(value)
                     updateData("Temperature: $data bpm")
+                }
+                else if (characteristic.uuid == HEART_RATE_CHARACTERISTIC_UUID) {
+                    // Parse the data based on your specific device's format
+
+                    updateData("Heart Rate : ${value.toString()} bpm")
+                }
+                else if (characteristic.uuid == BLUENRG_MS_ACC_CHARACTERISTIC_UUID) {
+                    parseMSAccDeta(value)
+                    updateData("Acc measure : ${value.toString()}")
                 }
             }
         }
