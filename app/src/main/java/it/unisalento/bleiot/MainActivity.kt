@@ -16,12 +16,15 @@ import android.bluetooth.*
 import android.bluetooth.le.BluetoothLeScanner
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.Build
 
 import android.os.Handler
+import android.os.IBinder
 import android.os.Looper
 import android.util.Log
 
@@ -109,6 +112,38 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+
+    // Add these properties to MainActivity
+    private var bleAndMqttService: BleAndMqttService? = null
+    private var serviceBound = false
+
+
+
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            val binder = service as BleAndMqttService.LocalBinder
+            bleAndMqttService = binder.getService()
+            serviceBound = true
+
+            // Set callback functions to update UI
+            bleAndMqttService?.setCallbacks(
+                statusCallback = { status ->
+                    updateStatus(status)
+                },
+                dataCallback = { data ->
+                    updateData(data)
+                }
+            )
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            bleAndMqttService = null
+            serviceBound = false
+        }
+    }
+
+
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -123,6 +158,15 @@ class MainActivity : ComponentActivity() {
             return
         }
 
+        // Start and bind to the service
+        val serviceIntent = Intent(this, BleAndMqttService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent)
+        } else {
+            startService(serviceIntent)
+        }
+        bindService(serviceIntent, serviceConnection, Context.BIND_AUTO_CREATE)
+
         setContent {
             BleNotificationApp(
                 uiState = uiState,
@@ -133,7 +177,6 @@ class MainActivity : ComponentActivity() {
                         stopScan()
                     }
                 }
-
             )
         }
     }
@@ -289,17 +332,24 @@ class MainActivity : ComponentActivity() {
         if (ActivityCompat.checkSelfPermission(
                 this,
                 Manifest.permission.BLUETOOTH_CONNECT
-            ) != PackageManager.PERMISSION_GRANTED
+            ) != PackageManager.PERMISSION_GRANTED && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
         ) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                return
-            }
+            return
         }
 
         updateStatus("Connecting to ${device.name ?: "Unknown Device"}...")
 
-        // Connect to GATT server
-        gattClient = device.connectGatt(this, false, gattCallback)
+        // Send connect command to service
+        if (serviceBound && bleAndMqttService != null) {
+            val deviceAddress = device.address
+            val serviceIntent = Intent(this, BleAndMqttService::class.java).apply {
+                action = "CONNECT_BLE"
+                putExtra("deviceAddress", deviceAddress)
+            }
+            startService(serviceIntent)
+        } else {
+            updateStatus("Service not bound, cannot connect")
+        }
     }
 
     // GATT callback
