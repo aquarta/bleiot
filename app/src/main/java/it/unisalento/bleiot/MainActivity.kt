@@ -9,8 +9,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 
-
-
 import android.Manifest
 import android.bluetooth.*
 import android.bluetooth.le.BluetoothLeScanner
@@ -31,11 +29,15 @@ import android.util.Log
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresPermission
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -62,8 +64,9 @@ class MainActivity : ComponentActivity() {
 
     private var gattClient: BluetoothGatt? = null
 
+    // List of discovered devices
+    private val scannedDevices = mutableListOf<BluetoothDevice>()
 
-    var target_device_name = "" // Initialize as empty
     // Example UUIDs - replace with your device's actual UUIDs
     private val SERVICE_UUID = UUID.fromString("00000000-0001-11e1-9ab4-0002a5d5c51b") // MSSensorDemo Service
 
@@ -87,10 +90,9 @@ class MainActivity : ComponentActivity() {
         BATTERY_CHARACTERISTIC_UUID,
     )
 
-
     // MQTT Client properties
     private var mqttClient: MqttClient? = null
-    private val MQTT_SERVER_URI = "tcp://localhost:1883"
+    private val MQTT_SERVER_URI = "tcp://vmi2211704.contaboserver.net:1883"
     private val MQTT_CLIENT_ID = "AndroidBleClient"
     private val MQTT_TOPIC = "ble/temperature"
     private val MQTT_USERNAME = "your_username" // Optional
@@ -112,12 +114,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-
     // Add these properties to MainActivity
     private var bleAndMqttService: BleAndMqttService? = null
     private var serviceBound = false
-
-
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
@@ -141,8 +140,6 @@ class MainActivity : ComponentActivity() {
             serviceBound = false
         }
     }
-
-
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -172,10 +169,16 @@ class MainActivity : ComponentActivity() {
                 uiState = uiState,
                 onScanButtonClick = {
                     if (!scanning) {
+                        // Clear the previously scanned devices first
+                        scannedDevices.clear()
+                        updateDevicesList()
                         checkPermissionsAndStartScan()
                     } else {
                         stopScan()
                     }
+                },
+                onDeviceClick = { device ->
+                    connectToDevice(device)
                 }
             )
         }
@@ -311,14 +314,12 @@ class MainActivity : ComponentActivity() {
             val device = result.device
             val deviceName = device.name ?: "Unknown Device"
 
-            Log.i(TAG, "Found device: $deviceName ${device.address} ")
+            Log.i(TAG, "Found device: $deviceName ${device.address}")
 
-            // Connect to the first device found (for demonstration)
-            // In a real app, you might want to show a list of devices
-
-            if (deviceName == target_device_name) {
-                stopScan()
-                connectToDevice(device)
+            // Add device to list if it's not already there
+            if (device.name != null && !scannedDevices.any { it.address == device.address }) {
+                scannedDevices.add(device)
+                updateDevicesList()
             }
         }
 
@@ -391,8 +392,6 @@ class MainActivity : ComponentActivity() {
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 Log.i(TAG, "Services discovered")
-
-
 
                 for (service_uuid in SERVICE_UUIDS) {
                     val service = gatt.getService(service_uuid)
@@ -529,11 +528,6 @@ class MainActivity : ComponentActivity() {
 
             // Set up connection options
             val options = MqttConnectOptions()
-            // Optional username and password
-//            if (MQTT_USERNAME.isNotEmpty() && MQTT_PASSWORD.isNotEmpty()) {
-//                options.userName = MQTT_USERNAME
-//                options.password = MQTT_PASSWORD.toCharArray()
-//            }
             options.isAutomaticReconnect = true
             options.isCleanSession = true
 
@@ -583,6 +577,33 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun updateDevicesList() {
+        _uiState.update { currentState ->
+            currentState.copy(
+                devicesList = scannedDevices.map { device ->
+                    // Check for permissions
+                    if (ActivityCompat.checkSelfPermission(
+                            this,
+                            Manifest.permission.BLUETOOTH_CONNECT
+                        ) == PackageManager.PERMISSION_GRANTED || Build.VERSION.SDK_INT < Build.VERSION_CODES.S
+                    ) {
+                        BleDeviceInfo(
+                            name = device.name ?: "Unknown Device",
+                            address = device.address,
+                            device = device
+                        )
+                    } else {
+                        BleDeviceInfo(
+                            name = "Unknown Device",
+                            address = device.address,
+                            device = device
+                        )
+                    }
+                }
+            )
+        }
+    }
+
     companion object {
         private const val REQUEST_ENABLE_BT = 1
     }
@@ -592,18 +613,26 @@ class MainActivity : ComponentActivity() {
 data class BleUiState(
     val statusText: String = "Not scanning",
     val dataText: String = "No data received",
-    val scanButtonText: String = "Start Scan"
+    val scanButtonText: String = "Start Scan",
+    val devicesList: List<BleDeviceInfo> = emptyList()
+)
+
+// Data class to represent a Bluetooth device in the UI
+data class BleDeviceInfo(
+    val name: String,
+    val address: String,
+    val device: BluetoothDevice
 )
 
 // Composable function for the UI
 @Composable
 fun BleNotificationApp(
     uiState: StateFlow<BleUiState>,
-    onScanButtonClick: () -> Unit
+    onScanButtonClick: () -> Unit,
+    onDeviceClick: (BluetoothDevice) -> Unit
 ) {
-    var deviceName by remember { mutableStateOf("") }
     val state by uiState.collectAsState()
-    val context = LocalContext.current
+
     MaterialTheme {
         Surface(
             modifier = Modifier.fillMaxSize(),
@@ -616,60 +645,136 @@ fun BleNotificationApp(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "BLE GATT Notification Example",
+                    text = "BLE Device Scanner",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(vertical = 32.dp)
+                    modifier = Modifier.padding(vertical = 24.dp)
                 )
-
-                OutlinedTextField(
-                    value = deviceName,
-                    onValueChange = { deviceName = it },
-                    label = { Text("Device Name") },
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-                SideEffect {
-
-                    if (context is MainActivity) { context.target_device_name = deviceName
-                    }
-                }
-
 
                 Button(
                     onClick = onScanButtonClick,
-                    modifier = Modifier.padding(vertical = 16.dp)
+                    modifier = Modifier.padding(bottom = 16.dp)
                 ) {
                     Text(text = state.scanButtonText)
                 }
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 32.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                // Device list
+                if (state.devicesList.isNotEmpty()) {
                     Text(
-                        text = "Status:",
+                        text = "Discovered Devices:",
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(end = 8.dp)
+                        modifier = Modifier
+                            .align(Alignment.Start)
+                            .padding(vertical = 8.dp)
                     )
-                    Text(text = state.statusText)
+
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                    ) {
+                        items(state.devicesList) { deviceInfo ->
+                            DeviceListItem(
+                                deviceName = deviceInfo.name,
+                                deviceAddress = deviceInfo.address,
+                                onClick = { onDeviceClick(deviceInfo.device) }
+                            )
+                        }
+                    }
+                } else if (state.statusText.contains("Scanning")) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No devices found",
+                            modifier = Modifier.alpha(0.6f)
+                        )
+                    }
                 }
 
-                Row(
+                // Status and data section
+                Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 24.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(vertical = 16.dp)
                 ) {
-                    Text(
-                        text = "Data:",
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(end = 8.dp)
-                    )
-                    Text(text = state.dataText)
+                    Column(
+                        modifier = Modifier
+                            .padding(16.dp)
+                            .fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Status:",
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                            Text(text = state.statusText)
+                        }
+
+                        if (state.dataText != "No data received") {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Data:",
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(end = 8.dp)
+                                )
+                                Text(text = state.dataText)
+                            }
+                        }
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun DeviceListItem(
+    deviceName: String,
+    deviceAddress: String,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clickable(onClick = onClick)
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth()
+        ) {
+            Text(
+                text = deviceName,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = deviceAddress,
+                fontSize = 14.sp,
+                modifier = Modifier.alpha(0.7f)
+            )
         }
     }
 }
