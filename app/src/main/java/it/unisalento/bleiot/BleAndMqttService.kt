@@ -74,6 +74,7 @@ class BleAndMqttService : Service() {
                 }
             }
             "DISCONNECT_BLE" -> {
+                Log.i(TAG, "received device disconnection command")
                 disconnectBle()
             }
             "STOP_SERVICE" -> {
