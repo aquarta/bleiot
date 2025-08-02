@@ -24,7 +24,8 @@ import kotlinx.coroutines.flow.StateFlow
 fun BleNotificationApp(
     uiState: StateFlow<BleUiState>,
     onScanButtonClick: () -> Unit,
-    onDeviceClick: (BluetoothDevice) -> Unit
+    onDeviceClick: (BluetoothDevice) -> Unit,
+    onDisconnectClick: () -> Unit
 ) {
     val state by uiState.collectAsState()
 
@@ -50,7 +51,9 @@ fun BleNotificationApp(
                 DeviceListSection(
                     devicesList = state.devicesList,
                     isScanning = state.statusText.contains("Scanning"),
-                    onDeviceClick = onDeviceClick
+                    connectedDeviceAddress = state.connectedDeviceAddress,
+                    onDeviceClick = onDeviceClick,
+                    onDisconnectClick = onDisconnectClick
                 )
 
                 // Status and data section
@@ -90,7 +93,9 @@ fun ScanButton(
 fun DeviceListSection(
     devicesList: List<BleDeviceInfo>,
     isScanning: Boolean,
-    onDeviceClick: (BluetoothDevice) -> Unit
+    connectedDeviceAddress: String?,
+    onDeviceClick: (BluetoothDevice) -> Unit,
+    onDisconnectClick: () -> Unit
 ) {
     if (devicesList.isNotEmpty()) {
         Text(
@@ -106,10 +111,18 @@ fun DeviceListSection(
                 .fillMaxWidth()
         ) {
             items(devicesList) { deviceInfo ->
+                val isConnected = deviceInfo.address == connectedDeviceAddress
+
                 DeviceListItem(
                     deviceName = deviceInfo.name,
                     deviceAddress = deviceInfo.address,
-                    onClick = { onDeviceClick(deviceInfo.device) }
+                    isConnected = isConnected,
+                    onClick = {
+                        if (!isConnected) onDeviceClick(deviceInfo.device)
+                    },
+                    onDisconnectClick = {
+                        if (isConnected) onDisconnectClick()
+                    }
                 )
             }
         }
@@ -139,7 +152,9 @@ fun DeviceListSection(
 fun DeviceListItem(
     deviceName: String,
     deviceAddress: String,
-    onClick: () -> Unit
+    isConnected: Boolean,
+    onClick: () -> Unit,
+    onDisconnectClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -152,16 +167,60 @@ fun DeviceListItem(
                 .padding(16.dp)
                 .fillMaxWidth()
         ) {
-            Text(
-                text = deviceName,
-                fontWeight = FontWeight.Bold
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = deviceName,
+                    fontWeight = FontWeight.Bold
+                )
+
+                if (isConnected) {
+                    Badge(
+                        modifier = Modifier.padding(end = 4.dp),
+                        containerColor = MaterialTheme.colorScheme.primary
+                    ) {
+                        Text(
+                            text = "Connected",
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            fontSize = 10.sp
+                        )
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = deviceAddress,
-                fontSize = 14.sp,
-                modifier = Modifier.alpha(0.7f)
-            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = deviceAddress,
+                    fontSize = 14.sp,
+                    modifier = Modifier.alpha(0.7f)
+                )
+
+                if (isConnected) {
+                    Button(
+                        onClick = onDisconnectClick,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error
+                        ),
+                        modifier = Modifier
+                            .padding(start = 8.dp)
+                            .height(32.dp)
+                    ) {
+                        Text(
+                            text = "Disconnect",
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
         }
     }
 }
