@@ -5,10 +5,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -18,6 +18,61 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.flow.StateFlow
 
 /**
+ * Main screen with menu for navigation
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MainScreenWithMenu(
+    uiState: StateFlow<BleUiState>,
+    onScanButtonClick: () -> Unit,
+    onDeviceClick: (BluetoothDevice) -> Unit,
+    onDisconnectClick: () -> Unit,
+    onSettingsClick: () -> Unit
+) {
+    var showMenu by remember { mutableStateOf(false) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("BLE IoT") },
+                actions = {
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "Menu")
+                    }
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Main") },
+                            onClick = { 
+                                showMenu = false
+                                // Already on main screen
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Settings") },
+                            onClick = { 
+                                showMenu = false
+                                onSettingsClick()
+                            }
+                        )
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
+        BleNotificationApp(
+            uiState = uiState,
+            onScanButtonClick = onScanButtonClick,
+            onDeviceClick = onDeviceClick,
+            onDisconnectClick = onDisconnectClick,
+            modifier = Modifier.padding(paddingValues)
+        )
+    }
+}
+
+/**
  * Main Composable for the BLE scanning application
  */
 @Composable
@@ -25,13 +80,14 @@ fun BleNotificationApp(
     uiState: StateFlow<BleUiState>,
     onScanButtonClick: () -> Unit,
     onDeviceClick: (BluetoothDevice) -> Unit,
-    onDisconnectClick: () -> Unit
+    onDisconnectClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val state by uiState.collectAsState()
 
     MaterialTheme {
         Surface(
-            modifier = Modifier.fillMaxSize(),
+            modifier = modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
             Column(
