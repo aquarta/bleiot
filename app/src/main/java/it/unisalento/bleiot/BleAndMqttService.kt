@@ -23,11 +23,11 @@ class BleAndMqttService : Service() {
 
     // MQTT properties
     private var mqttClient: MqttClient? = null
-    private val MQTT_SERVER_URI = "tcp://vmi2211704.contaboserver.net:1883"
     private val MQTT_CLIENT_ID = "AndroidBleClient" + System.currentTimeMillis()
     private val MQTT_TOPIC = "ble/temperature"
     private val MQTT_USERNAME = "your_username" // Optional
     private val MQTT_PASSWORD = "your_password" // Optional
+    private lateinit var mqttSettings: MqttSettings
 
     // BLE properties
     private var bluetoothAdapter: BluetoothAdapter? = null
@@ -52,6 +52,9 @@ class BleAndMqttService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+
+        // Initialize MQTT settings
+        mqttSettings = MqttSettings.getInstance(this)
 
         // Initialize Bluetooth adapter
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
@@ -99,6 +102,11 @@ class BleAndMqttService : Service() {
     fun setCallbacks(statusCallback: (String) -> Unit, dataCallback: (String) -> Unit) {
         this.statusCallback = statusCallback
         this.dataCallback = dataCallback
+    }
+
+    fun reloadMqttSettings() {
+        disconnectMqtt()
+        setupMqttClient()
     }
 
     private fun createNotificationChannel() {
@@ -151,8 +159,11 @@ class BleAndMqttService : Service() {
     // MQTT Methods
     private fun setupMqttClient() {
         try {
+            val config = mqttSettings.getMqttConfig()
+            val serverUri = "tcp://${config.server}:${config.port}"
+            
             mqttClient = MqttClient(
-                MQTT_SERVER_URI,
+                serverUri,
                 MQTT_CLIENT_ID,
                 MemoryPersistence()
             )
@@ -166,7 +177,7 @@ class BleAndMqttService : Service() {
             options.isCleanSession = true
 
             mqttClient?.connect(options)
-            updateStatus("Connected to MQTT broker")
+            updateStatus("Connected to MQTT broker at ${config.server}:${config.port}")
 
         } catch (e: MqttException) {
             Log.e(TAG, "Error setting up MQTT client: ${e.message}")
