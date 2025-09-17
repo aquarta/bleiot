@@ -23,6 +23,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import it.unisalento.bleiot.ui.theme.BleNotificationTheme
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.*
 
 class SettingsActivity : ComponentActivity() {
     
@@ -119,12 +122,18 @@ fun SettingsScreenWithMenu(onMainClick: () -> Unit, onMqttSettingsSaved: () -> U
 @Composable
 fun SettingsScreen(modifier: Modifier = Modifier, onMqttSettingsSaved: () -> Unit = {}) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val mqttSettings = remember { MqttSettings.getInstance(context) }
+    val remoteConfigManager = remember { RemoteConfigManager.getInstance(context) }
     
     var mqttConfig by remember { mutableStateOf(mqttSettings.getMqttConfig()) }
     var serverText by remember { mutableStateOf(mqttConfig.server) }
     var portText by remember { mutableStateOf(mqttConfig.port.toString()) }
+    var configUrlText by remember { mutableStateOf(mqttSettings.getDeviceConfigUrl()) }
     var showSuccessMessage by remember { mutableStateOf(false) }
+    var showConfigMessage by remember { mutableStateOf("") }
+    var isDownloadingConfig by remember { mutableStateOf(false) }
+    var lastUpdateTime by remember { mutableStateOf(remoteConfigManager.getLastUpdateTime()) }
 
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -218,6 +227,108 @@ fun SettingsScreen(modifier: Modifier = Modifier, onMqttSettingsSaved: () -> Uni
                     modifier = Modifier.padding(16.dp)
                 ) {
                     Text(
+                        text = "Device Configuration",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                    
+                    OutlinedTextField(
+                        value = configUrlText,
+                        onValueChange = { configUrlText = it },
+                        label = { Text("Config URL") },
+                        placeholder = { Text("https://example.com/device-config.yaml") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                    )
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                mqttSettings.saveDeviceConfigUrl(configUrlText)
+                                showConfigMessage = "Config URL saved!"
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Save URL")
+                        }
+                        
+                        Button(
+                            onClick = {
+                                if (configUrlText.isNotBlank()) {
+                                    isDownloadingConfig = true
+                                    scope.launch {
+                                        mqttSettings.saveDeviceConfigUrl(configUrlText)
+                                        val result = remoteConfigManager.downloadAndSaveConfig(configUrlText)
+                                        isDownloadingConfig = false
+                                        result.fold(
+                                            onSuccess = { message ->
+                                                showConfigMessage = message
+                                                lastUpdateTime = remoteConfigManager.getLastUpdateTime()
+                                            },
+                                            onFailure = { error ->
+                                                showConfigMessage = "Error: ${error.message}"
+                                            }
+                                        )
+                                    }
+                                }
+                            },
+                            enabled = !isDownloadingConfig && configUrlText.isNotBlank(),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            if (isDownloadingConfig) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text("Refresh")
+                            }
+                        }
+                    }
+                    
+                    if (showConfigMessage.isNotEmpty()) {
+                        LaunchedEffect(showConfigMessage) {
+                            kotlinx.coroutines.delay(3000)
+                            showConfigMessage = ""
+                        }
+                        
+                        Text(
+                            text = showConfigMessage,
+                            color = if (showConfigMessage.startsWith("Error")) 
+                                MaterialTheme.colorScheme.error 
+                            else 
+                                MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+                    
+                    if (lastUpdateTime > 0) {
+                        val dateFormat = SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault())
+                        Text(
+                            text = "Last updated: ${dateFormat.format(Date(lastUpdateTime))}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+                }
+            }
+            
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Text(
                         text = "Current Configuration",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Medium,
@@ -230,6 +341,10 @@ fun SettingsScreen(modifier: Modifier = Modifier, onMqttSettingsSaved: () -> Uni
                     )
                     Text(
                         text = "Port: ${mqttConfig.port}",
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                    Text(
+                        text = "Config URL: ${if (configUrlText.isBlank()) "Not set" else configUrlText}",
                         modifier = Modifier.padding(vertical = 4.dp)
                     )
                 }
