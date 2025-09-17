@@ -28,6 +28,7 @@ class BleAndMqttService : Service() {
     private val MQTT_USERNAME = "your_username" // Optional
     private val MQTT_PASSWORD = "your_password" // Optional
     private lateinit var mqttSettings: MqttSettings
+    private lateinit var deviceConfigManager: DeviceConfigurationManager
 
     // BLE properties
     private var bluetoothAdapter: BluetoothAdapter? = null
@@ -53,8 +54,9 @@ class BleAndMqttService : Service() {
         super.onCreate()
         createNotificationChannel()
 
-        // Initialize MQTT settings
+        // Initialize MQTT settings and device configuration
         mqttSettings = MqttSettings.getInstance(this)
+        deviceConfigManager = DeviceConfigurationManager.getInstance(this)
 
         // Initialize Bluetooth adapter
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
@@ -337,12 +339,7 @@ class BleAndMqttService : Service() {
             characteristic: BluetoothGattCharacteristic,
             value: ByteArray
         ) {
-            if (characteristic.uuid == CHARACTERISTIC_UUID) {
-                val data = parseTemperatureDeta(value)
-                val formattedData = "Temperature: $data C"
-                updateData(formattedData)
-                publishToMqtt(MQTT_TOPIC, data.toString())
-            }
+            handleCharacteristicChanged(gatt, characteristic, value)
         }
 
         // For Android versions below 13
@@ -355,13 +352,64 @@ class BleAndMqttService : Service() {
                 super.onCharacteristicChanged(gatt, characteristic)
             } else {
                 val value = characteristic.value
+                handleCharacteristicChanged(gatt, characteristic, value)
+            }
+        }
+    }
+
+    private fun handleCharacteristicChanged(
+        gatt: BluetoothGatt,
+        characteristic: BluetoothGattCharacteristic,
+        value: ByteArray
+    ) {
+        try {
+            if (ActivityCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.BLUETOOTH_CONNECT
+                ) != PackageManager.PERMISSION_GRANTED && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+            ) {
+                return
+            }
+
+            val deviceName = gatt.device.name
+            val serviceUuid = characteristic.service.uuid.toString()
+            val characteristicUuid = characteristic.uuid.toString()
+
+            // Try to find device configuration
+            val configPair = deviceConfigManager.findServiceAndCharacteristic(
+                deviceName, serviceUuid, characteristicUuid
+            )
+
+            if (configPair != null) {
+                val (serviceInfo, characteristicInfo) = configPair
+                
+                // Parse data using configuration
+                val parsedData = deviceConfigManager.parseCharacteristicData(characteristicInfo, value)
+                
+                if (parsedData != null) {
+                    val formattedData = "${characteristicInfo.name}: $parsedData"
+                    updateData(formattedData)
+                    publishToMqtt(characteristicInfo.mqttTopic, parsedData.toString())
+                    
+                    Log.i(TAG, "Parsed ${characteristicInfo.name} from ${deviceName}: $parsedData")
+                } else {
+                    Log.w(TAG, "Failed to parse data for ${characteristicInfo.name}")
+                }
+            } else {
+                // Fallback to original parsing if no configuration found
                 if (characteristic.uuid == CHARACTERISTIC_UUID) {
                     val data = parseTemperatureDeta(value)
                     val formattedData = "Temperature: $data C"
                     updateData(formattedData)
                     publishToMqtt(MQTT_TOPIC, data.toString())
+                    
+                    Log.i(TAG, "Used fallback parsing for unknown device: $deviceName")
+                } else {
+                    Log.w(TAG, "No configuration found for device: $deviceName, service: $serviceUuid, characteristic: $characteristicUuid")
                 }
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error handling characteristic change", e)
         }
     }
 

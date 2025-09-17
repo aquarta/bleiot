@@ -8,6 +8,11 @@ data class MqttConfig(
     val port: Int = 1883
 )
 
+data class AppConfig(
+    val mqttConfig: MqttConfig = MqttConfig(),
+    val deviceConfigUrl: String = ""
+)
+
 class MqttSettings private constructor(context: Context) {
     private val sharedPreferences: SharedPreferences = context.getSharedPreferences(
         PREFS_NAME, Context.MODE_PRIVATE
@@ -28,10 +33,29 @@ class MqttSettings private constructor(context: Context) {
         )
     }
 
+    fun saveDeviceConfigUrl(url: String) {
+        sharedPreferences.edit().apply {
+            putString(KEY_DEVICE_CONFIG_URL, url)
+            apply()
+        }
+    }
+
+    fun getDeviceConfigUrl(): String {
+        return sharedPreferences.getString(KEY_DEVICE_CONFIG_URL, "") ?: ""
+    }
+
+    fun getAppConfig(): AppConfig {
+        return AppConfig(
+            mqttConfig = getMqttConfig(),
+            deviceConfigUrl = getDeviceConfigUrl()
+        )
+    }
+
     companion object {
         private const val PREFS_NAME = "mqtt_settings"
         private const val KEY_MQTT_SERVER = "mqtt_server"
         private const val KEY_MQTT_PORT = "mqtt_port"
+        private const val KEY_DEVICE_CONFIG_URL = "device_config_url"
 
         @Volatile
         private var INSTANCE: MqttSettings? = null
