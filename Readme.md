@@ -5,3 +5,12 @@ a mqtt server.
 
 Useful for sample.
 
+## Debug on Device
+
+
+```shell
+cd ~/platform-tools/
+antonio@ritchie:~/platform-tools$ ./adb start-server
+antonio@ritchie:~/platform-tools$ ./adb devices 
+
+```
