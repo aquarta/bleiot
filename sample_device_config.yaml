@@ -1,0 +1,88 @@
+devices:
+  STDemo:
+    name: "STDemo"
+    shortName: "STDemo"
+    services:
+      - uuid: "0000180f-0000-1000-8000-00805f9b34fb"
+        name: "Battery Service"
+        characteristics:
+          - uuid: "00002a19-0000-1000-8000-00805f9b34fb"
+            name: "Battery Level"
+            dataType: "4_byte_double"
+            mqttTopic: "ble/battery"
+            
+  MoveSense:
+    name: "MoveSense"
+    shortName: "MoveSense"
+    services:
+      - uuid: "0000180d-0000-1000-8000-00805f9b34fb"
+        name: "Heart Rate Service"
+        characteristics:
+          - uuid: "00002a37-0000-1000-8000-00805f9b34fb"
+            name: "Heart Rate Measurement"
+            dataType: "4_byte_integer"
+            mqttTopic: "ble/heartrate"
+            
+  ZephyrTemperature:
+    name: "ZephyrTemperature"
+    shortName: "ZephyrTemperature"
+    services:
+      - uuid: "0000180f-0000-1000-8000-00805f9b34fb"
+        name: "Battery Service"
+        characteristics:
+          - uuid: "00002a19-0000-1000-8000-00805f9b34fb"
+            name: "Battery Level"
+            dataType: "4_byte_float"
+            mqttTopic: "ble/battery"
+      - uuid: "00001809-0000-1000-8000-00805f9b34fb"
+        name: "Temperature Service"
+        characteristics:
+          - uuid: "00002a6e-0000-1000-8000-00805f9b34fb"
+            name: "Temperature"
+            dataType: "4_byte_float"
+            mqttTopic: "ble/temperature"
+            
+  "ST Sensor Demo":
+    name: "ST Sensor Demo"
+    shortName: "STSensorDemo"
+    services:
+      - uuid: "00000000-0001-11e1-9ab4-0002a5d5c51b"
+        name: "BLUENRG_MS_SERVICE"
+        characteristics:
+          - uuid: "00140000-0001-11e1-ac36-0002a5d5c51b"
+            name: "BLUENRG_MS_ACC_CHARACTERISTIC"
+            dataType: "custom_temperature"
+            mqttTopic: "ble/temperature"
+            customParser: "parseTemperatureDeta"
+  "BLEPnP":
+    name: "BLEPnP"
+    shortName: "BLEPnP"
+    services:
+      - uuid: "00000000-0001-11e1-9ab4-0002a5d5c51b"
+        name: "FEATURES_SERVICE"
+        characteristics:
+        - uuid: "00020000-0001-11e1-ac36-0002a5d5c51b"
+          name: "BATTERY_CHAR"
+          dataType: "4_byte_float"
+          mqttTopic: "ble/battery"
+        - uuid: "00000014-0002-11e1-ac36-0002a5d5c51b"
+          name: "EXT_CONFIG"
+          dataType: "custom_temperature"
+          mqttTopic: "ble/temperature"
+          customParser: "parseTemperatureDeta"
+
+# Data type definitions
+dataTypes:
+  4_byte_double:
+    size: 4
+    conversion: "toDouble"
+  4_byte_integer:
+    size: 4
+    conversion: "toInt"
+  4_byte_float:
+    size: 4
+    conversion: "toFloat"
+  custom_temperature:
+    size: "variable"
+    conversion: "custom"
+    description: "Parse temperature data using custom logic"
