@@ -28,7 +28,7 @@ class MqttSettings private constructor(context: Context) {
 
     fun getMqttConfig(): MqttConfig {
         return MqttConfig(
-            server = sharedPreferences.getString(KEY_MQTT_SERVER, "broker.hivemq.com") ?: "broker.hivemq.com",
+            server = sharedPreferences.getString(KEY_MQTT_SERVER, "vmi2211704.contaboserver.net") ?: "vmi2211704.contaboserver.net",
             port = sharedPreferences.getInt(KEY_MQTT_PORT, 1883)
         )
     }
