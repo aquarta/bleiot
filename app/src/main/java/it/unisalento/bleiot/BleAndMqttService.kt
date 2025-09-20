@@ -14,6 +14,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import org.eclipse.paho.client.mqttv3.*
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
+import org.json.JSONObject
 import java.util.*
 
 private const val CCCD = "00002902-0000-1000-8000-00805f9b34fb"
@@ -445,7 +446,7 @@ class BleAndMqttService : Service() {
 
                     val formattedData = "${characteristicInfo.name}: $enrichedData"
                     updateData(formattedData)
-                    publishToMqtt(characteristicInfo.mqttTopic, enrichedData.toString())
+                    publishToMqtt(characteristicInfo.mqttTopic, toJsonString(enrichedData))
 
                     Log.i(TAG, "Parsed ${characteristicInfo.name} from ${deviceName}: $enrichedData")
                 } else {
@@ -466,7 +467,7 @@ class BleAndMqttService : Service() {
 
                             val formattedData = "${knownCharacteristic.name}: $parsedData"
                             updateData(formattedData)
-                            publishToMqtt(knownCharacteristic.mqttTopic, parsedData.toString())
+                            publishToMqtt(knownCharacteristic.mqttTopic, toJsonString(parsedData))
 
                             Log.i(TAG, "Used custom parser ${knownCharacteristic.customParser} for ${knownCharacteristic.name}")
                         } catch (e: Exception) {
@@ -486,7 +487,7 @@ class BleAndMqttService : Service() {
 
                                 val formattedData = "${knownCharacteristic.name}: $enrichedData"
                                 updateData(formattedData)
-                                publishToMqtt(knownCharacteristic.mqttTopic, enrichedData.toString())
+                                publishToMqtt(knownCharacteristic.mqttTopic, toJsonString(enrichedData))
                             }
                         }
                     } else {
@@ -505,7 +506,7 @@ class BleAndMqttService : Service() {
 
                             val formattedData = "${knownCharacteristic.name}: $enrichedData"
                             updateData(formattedData)
-                            publishToMqtt(knownCharacteristic.mqttTopic, enrichedData.toString())
+                            publishToMqtt(knownCharacteristic.mqttTopic, toJsonString(enrichedData))
 
                             Log.i(TAG, "Used standard parsing for known characteristic ${knownCharacteristic.name}")
                         }
@@ -552,5 +553,18 @@ class BleAndMqttService : Service() {
     private fun updateData(data: String) {
         Log.i(TAG, "Data: $data")
         dataCallback?.invoke(data)
+    }
+
+    private fun toJsonString(data: Any): String {
+        return if (data is Map<*, *>) {
+            try {
+                JSONObject(data as Map<String, Any>).toString()
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to convert to JSON: ${e.message}")
+                data.toString()
+            }
+        } else {
+            data.toString()
+        }
     }
 }
