@@ -16,6 +16,8 @@ import org.eclipse.paho.client.mqttv3.*
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 import java.util.*
 
+private const val CCCD = "00002902-0000-1000-8000-00805f9b34fb"
+
 class BleAndMqttService : Service() {
     private val TAG = "BleAndMqttService"
     private val NOTIFICATION_ID = 1
@@ -163,7 +165,7 @@ class BleAndMqttService : Service() {
         try {
             val config = mqttSettings.getMqttConfig()
             val serverUri = "tcp://${config.server}:${config.port}"
-            
+
             mqttClient = MqttClient(
                 serverUri,
                 MQTT_CLIENT_ID,
@@ -187,6 +189,10 @@ class BleAndMqttService : Service() {
         }
     }
 
+    private fun reconnectMqttClient() {
+        Log.w(TAG, "Reconnecting to MQTT server")
+        setupMqttClient();
+    }
     private fun publishToMqtt(topic: String, message: String) {
         try {
             if (mqttClient?.isConnected == true) {
@@ -205,6 +211,7 @@ class BleAndMqttService : Service() {
                 }
             }
         } catch (e: MqttException) {
+            reconnectMqttClient();
             Log.e(TAG, "Error publishing to MQTT: ${e.message}")
         }
     }
@@ -299,35 +306,74 @@ class BleAndMqttService : Service() {
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 Log.i(TAG, "Services discovered")
 
-                // Find our service and characteristic
-                val service = gatt.getService(SERVICE_UUID)
-                if (service != null) {
-                    val characteristic = service.getCharacteristic(CHARACTERISTIC_UUID)
-                    if (characteristic != null) {
-                        if (ActivityCompat.checkSelfPermission(
-                                this@BleAndMqttService,
-                                Manifest.permission.BLUETOOTH_CONNECT
-                            ) != PackageManager.PERMISSION_GRANTED && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-                        ) {
-                            return
-                        }
+                if (ActivityCompat.checkSelfPermission(
+                        this@BleAndMqttService,
+                        Manifest.permission.BLUETOOTH_CONNECT
+                    ) != PackageManager.PERMISSION_GRANTED && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                ) {
+                    return
+                }
 
-                        // Enable notifications
-                        gatt.setCharacteristicNotification(characteristic, true)
+                val deviceName = gatt.device.name
+                var enabledCharacteristics = 0
 
-                        // Enable the Client Characteristic Configuration Descriptor (CCCD)
-                        val desc_uuid = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
-                        val descriptor = characteristic.getDescriptor(desc_uuid)
-                        if (descriptor != null) {
-                            descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
-                            gatt.writeDescriptor(descriptor)
-                            updateStatus("Notifications enabled")
+                // Iterate through all services
+                for (service in gatt.services) {
+                    Log.i(TAG, "Checking service: ${service.uuid}")
+
+                    // Iterate through all characteristics in each service
+                    for (characteristic in service.characteristics) {
+                        Log.i(TAG, "Checking characteristic: ${characteristic.uuid}")
+
+                        // Check if this characteristic is known in our configuration
+                        val configPair = deviceConfigManager.findServiceAndCharacteristic(
+                            deviceName, service.uuid.toString(), characteristic.uuid.toString()
+                        )
+
+                        if (configPair != null) {
+                            val (serviceInfo, characteristicInfo) = configPair
+                            Log.i(TAG, "Found configured characteristic: ${characteristicInfo.name}")
+
+                            // Enable notifications for known characteristics
+                            if (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0) {
+                                gatt.setCharacteristicNotification(characteristic, true)
+
+                                // Enable the Client Characteristic Configuration Descriptor (CCCD)
+                                val desc_uuid = UUID.fromString(CCCD)
+                                val descriptor = characteristic.getDescriptor(desc_uuid)
+                                if (descriptor != null) {
+                                    descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+                                    gatt.writeDescriptor(descriptor)
+                                    enabledCharacteristics++
+                                    Log.i(TAG, "Enabled notifications for ${characteristicInfo.name}")
+                                }
+                            }
+                        } else {
+                            // Fallback: check against hardcoded characteristic for backward compatibility
+                            if (service.uuid == SERVICE_UUID && characteristic.uuid == CHARACTERISTIC_UUID) {
+                                Log.i(TAG, "Found fallback characteristic")
+
+                                if (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0) {
+                                    gatt.setCharacteristicNotification(characteristic, true)
+
+                                    val desc_uuid = UUID.fromString(CCCD)
+                                    val descriptor = characteristic.getDescriptor(desc_uuid)
+                                    if (descriptor != null) {
+                                        descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+                                        gatt.writeDescriptor(descriptor)
+                                        enabledCharacteristics++
+                                        Log.i(TAG, "Enabled notifications for fallback characteristic")
+                                    }
+                                }
+                            }
                         }
-                    } else {
-                        updateStatus("Characteristic not found")
                     }
+                }
+
+                if (enabledCharacteristics > 0) {
+                    updateStatus("Notifications enabled for $enabledCharacteristics characteristics")
                 } else {
-                    updateStatus("Service not found")
+                    updateStatus("No known characteristics found for notifications")
                 }
             } else {
                 updateStatus("Service discovery failed: $status")
@@ -374,7 +420,7 @@ class BleAndMqttService : Service() {
             val deviceName = gatt.device.name
             val serviceUuid = characteristic.service.uuid.toString()
             val characteristicUuid = characteristic.uuid.toString()
-
+            Log.i(TAG, "handleCharacteristicChanged findServiceAndCharacteristic ${deviceName} ${serviceUuid} ${characteristicUuid}")
             // Try to find device configuration
             val configPair = deviceConfigManager.findServiceAndCharacteristic(
                 deviceName, serviceUuid, characteristicUuid
@@ -385,32 +431,109 @@ class BleAndMqttService : Service() {
                 
                 // Parse data using configuration
                 val parsedData = deviceConfigManager.parseCharacteristicData(characteristicInfo, value)
-                
+
                 if (parsedData != null) {
-                    val formattedData = "${characteristicInfo.name}: $parsedData"
+                    // Add device info if parsedData is a Map
+                    val enrichedData = if (parsedData is Map<*, *>) {
+                        val mutableData = parsedData.toMutableMap()
+                        mutableData["deviceName"] = deviceName ?: "Unknown"
+                        mutableData["deviceAddress"] = gatt.device.address ?: "Unknown"
+                        mutableData
+                    } else {
+                        parsedData
+                    }
+
+                    val formattedData = "${characteristicInfo.name}: $enrichedData"
                     updateData(formattedData)
-                    publishToMqtt(characteristicInfo.mqttTopic, parsedData.toString())
-                    
-                    Log.i(TAG, "Parsed ${characteristicInfo.name} from ${deviceName}: $parsedData")
+                    publishToMqtt(characteristicInfo.mqttTopic, enrichedData.toString())
+
+                    Log.i(TAG, "Parsed ${characteristicInfo.name} from ${deviceName}: $enrichedData")
                 } else {
                     Log.w(TAG, "Failed to parse data for ${characteristicInfo.name}")
                 }
             } else {
-                // Fallback to original parsing if no configuration found
-                if (characteristic.uuid == CHARACTERISTIC_UUID) {
-                    val data = parseTemperatureDeta(value)
-                    val formattedData = "Temperature: $data C"
-                    updateData(formattedData)
-                    publishToMqtt(MQTT_TOPIC, data.toString())
-                    
-                    Log.i(TAG, "Used fallback parsing for unknown device: $deviceName")
+                // Check if characteristic is known by UUID only (without device context)
+                val knownCharacteristic = deviceConfigManager.findCharacteristicByUuid(characteristicUuid)
+
+                if (knownCharacteristic != null) {
+                    // Check if there's a custom parser defined
+                    if (!knownCharacteristic.customParser.isNullOrEmpty()) {
+                        try {
+                            // Call the custom parser method using reflection
+                            val method = this@BleAndMqttService::class.java.getDeclaredMethod(knownCharacteristic.customParser, ByteArray::class.java)
+                            method.isAccessible = true
+                            val parsedData = method.invoke(this@BleAndMqttService, value)
+
+                            val formattedData = "${knownCharacteristic.name}: $parsedData"
+                            updateData(formattedData)
+                            publishToMqtt(knownCharacteristic.mqttTopic, parsedData.toString())
+
+                            Log.i(TAG, "Used custom parser ${knownCharacteristic.customParser} for ${knownCharacteristic.name}")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error calling custom parser ${knownCharacteristic.customParser}: ${e.message}")
+                            // Fall back to standard parsing
+                            val parsedData = deviceConfigManager.parseCharacteristicData(knownCharacteristic, value)
+                            if (parsedData != null) {
+                                // Add device info if parsedData is a Map
+                                val enrichedData = if (parsedData is Map<*, *>) {
+                                    val mutableData = parsedData.toMutableMap()
+                                    mutableData["deviceName"] = deviceName ?: "Unknown"
+                                    mutableData["deviceAddress"] = gatt.device.address ?: "Unknown"
+                                    mutableData
+                                } else {
+                                    parsedData
+                                }
+
+                                val formattedData = "${knownCharacteristic.name}: $enrichedData"
+                                updateData(formattedData)
+                                publishToMqtt(knownCharacteristic.mqttTopic, enrichedData.toString())
+                            }
+                        }
+                    } else {
+                        // Use standard parsing from configuration
+                        val parsedData = deviceConfigManager.parseCharacteristicData(knownCharacteristic, value)
+                        if (parsedData != null) {
+                            // Add device info if parsedData is a Map
+                            val enrichedData = if (parsedData is Map<*, *>) {
+                                val mutableData = parsedData.toMutableMap()
+                                mutableData["deviceName"] = deviceName ?: "Unknown"
+                                mutableData["deviceAddress"] = gatt.device.address ?: "Unknown"
+                                mutableData
+                            } else {
+                                parsedData
+                            }
+
+                            val formattedData = "${knownCharacteristic.name}: $enrichedData"
+                            updateData(formattedData)
+                            publishToMqtt(knownCharacteristic.mqttTopic, enrichedData.toString())
+
+                            Log.i(TAG, "Used standard parsing for known characteristic ${knownCharacteristic.name}")
+                        }
+                    }
                 } else {
-                    Log.w(TAG, "No configuration found for device: $deviceName, service: $serviceUuid, characteristic: $characteristicUuid")
+                    // Fallback to original hardcoded parsing
+                    if (characteristic.uuid == CHARACTERISTIC_UUID) {
+                        val data = parseTemperatureDeta(value)
+                        val formattedData = "Temperature: $data C"
+                        updateData(formattedData)
+                        publishToMqtt(MQTT_TOPIC, data.toString())
+
+                        Log.i(TAG, "Used fallback parsing for unknown device: $deviceName $characteristicUuid $knownCharacteristic")
+                    } else {
+                        Log.w(TAG, "No configuration found for device: $deviceName, service: $serviceUuid, characteristic: $characteristicUuid")
+                    }
                 }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error handling characteristic change", e)
         }
+    }
+
+    private fun parseSTBattery(data: ByteArray): Double {
+        val battValue = data.sliceArray(6 until data.size).foldIndexed(0) { index, acc, byte ->
+            acc or ((byte.toInt() and 0xFF) shl (8 * index))
+        }
+        return battValue.toDouble()
     }
 
     private fun parseTemperatureDeta(data: ByteArray): Double {

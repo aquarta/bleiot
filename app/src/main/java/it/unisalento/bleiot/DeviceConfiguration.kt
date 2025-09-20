@@ -79,11 +79,12 @@ class DeviceConfigurationManager private constructor(context: Context) {
         val deviceConfig = findDeviceConfig(deviceName) ?: return null
         Log.i(TAG, "See if deviceName: ${deviceName} ${deviceConfig}")
         for (service in deviceConfig.services) {
-            Log.i(TAG, "See if match serviceUuid: ${serviceUuid}")
+            Log.i(TAG, "See if match serviceUuid: ${serviceUuid} ${service.uuid}")
             if (service.uuid.equals(serviceUuid, ignoreCase = true)) {
                 for (characteristic in service.characteristics) {
                     Log.i(TAG, "See if match characteristic: ${characteristic}")
                     if (characteristic.uuid.equals(characteristicUuid, ignoreCase = true)) {
+                        Log.d(TAG, "Pair Found:  ${deviceName} ${serviceUuid} ${characteristic}")
                         return Pair(service, characteristic)
                     }
                 }
@@ -91,8 +92,25 @@ class DeviceConfigurationManager private constructor(context: Context) {
         }
         return null
     }
+
+    fun findCharacteristicByUuid(characteristicUuid: String): CharacteristicInfo? {
+        val config = getDeviceConfiguration() ?: return null
+
+        // Search through all devices, services, and characteristics
+        for (device in config.devices.values) {
+            for (service in device.services) {
+                for (characteristic in service.characteristics) {
+                    if (characteristic.uuid.equals(characteristicUuid, ignoreCase = true)) {
+                        Log.d(TAG, "Found characteristic by UUID: ${characteristic.name} (${characteristicUuid})")
+                        return characteristic
+                    }
+                }
+            }
+        }
+        return null
+    }
     
-    fun parseCharacteristicData(characteristicInfo: CharacteristicInfo, data: ByteArray): Any? {
+    fun parseCharacteristicData(characteristicInfo: CharacteristicInfo, data: ByteArray, deviceName: String? = null, deviceAddress: String? = null): Any? {
         val config = getDeviceConfiguration() ?: return null
         val dataTypeInfo = config.dataTypes[characteristicInfo.dataType]
         
@@ -127,6 +145,42 @@ class DeviceConfigurationManager private constructor(context: Context) {
                         acc or ((byte.toInt() and 0xFF) shl (8 * index))
                     }
                     (tempValue / 10).toDouble()
+                    // Return as a structured map
+                    mapOf(
+                        "temperature" to tempValue,
+                    )
+                } else null
+            }
+            "STBatteryStruct" -> {
+                if (data.size >= 9) {
+                    // Parse according to the BLE_BatteryUpdate struct format
+                    // STORE_LE_16(buff, (HAL_GetTick() / 10));
+                    val timestamp = (data[0].toInt() and 0xFF) or ((data[1].toInt() and 0xFF) shl 8)
+
+                    // STORE_LE_16(buff + 2, (BatteryLevel * 10U));
+                    val batteryLevelRaw = (data[2].toInt() and 0xFF) or ((data[3].toInt() and 0xFF) shl 8)
+                    val batteryLevel = batteryLevelRaw / 10.0
+
+                    // STORE_LE_16(buff + 4, (Voltage));
+                    val voltage = (data[4].toInt() and 0xFF) or ((data[5].toInt() and 0xFF) shl 8)
+
+                    // STORE_LE_16(buff + 6, (Current));
+                    val current = (data[6].toInt() and 0xFF) or ((data[7].toInt() and 0xFF) shl 8)
+
+                    // buff[8] = (uint8_t)Status;
+                    val status = data[8].toInt() and 0xFF
+
+                    // Return as a structured map
+                    val ret = mapOf(
+                        "timestamp" to timestamp,
+                        "batteryLevel" to batteryLevel,
+                        "voltage" to voltage,
+                        "current" to current,
+                        "status" to status
+                    )
+                    Log.w(TAG, "Battery Parsed : ${ret}")
+                    return ret
+
                 } else null
             }
             else -> {
