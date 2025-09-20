@@ -38,6 +38,10 @@ class BleAndMqttService : Service() {
     private var bluetoothGatt: BluetoothGatt? = null
     private var connectedDevice: BluetoothDevice? = null
 
+    // Queue for descriptor operations
+    private val descriptorWriteQueue = mutableListOf<BluetoothGattDescriptor>()
+    private var isWritingDescriptor = false
+
     // Service UUID and Characteristic UUID
     private val SERVICE_UUID = UUID.fromString("00000000-0001-11e1-9ab4-0002a5d5c51b")
     private val CHARACTERISTIC_UUID = UUID.fromString("00140000-0001-11e1-ac36-0002a5d5c51b")
@@ -247,7 +251,7 @@ class BleAndMqttService : Service() {
             device?.let {
                 connectedDevice = it
                 updateStatus("Connecting to ${it.name ?: "Unknown Device"}...")
-                bluetoothGatt = it.connectGatt(this, true, gattCallback)
+                bluetoothGatt = it.connectGatt(this, false, gattCallback)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error connecting to device: ${e.message}")
@@ -344,9 +348,9 @@ class BleAndMqttService : Service() {
                                 val descriptor = characteristic.getDescriptor(desc_uuid)
                                 if (descriptor != null) {
                                     descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
-                                    gatt.writeDescriptor(descriptor)
+                                    queueDescriptorWrite(descriptor)
                                     enabledCharacteristics++
-                                    Log.i(TAG, "Enabled notifications for ${characteristicInfo.name}")
+                                    Log.i(TAG, "Queued notifications for ${characteristicInfo.name}")
                                 }
                             }
                         } else {
@@ -361,9 +365,9 @@ class BleAndMqttService : Service() {
                                     val descriptor = characteristic.getDescriptor(desc_uuid)
                                     if (descriptor != null) {
                                         descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
-                                        gatt.writeDescriptor(descriptor)
+                                        queueDescriptorWrite(descriptor)
                                         enabledCharacteristics++
-                                        Log.i(TAG, "Enabled notifications for fallback characteristic")
+                                        Log.i(TAG, "Queued notifications for fallback characteristic")
                                     }
                                 }
                             }
@@ -379,6 +383,17 @@ class BleAndMqttService : Service() {
             } else {
                 updateStatus("Service discovery failed: $status")
             }
+        }
+
+        override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
+            isWritingDescriptor = false
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                Log.d(TAG, "Descriptor write successful")
+            } else {
+                Log.w(TAG, "Descriptor write failed with status: $status")
+            }
+            // Process next descriptor in queue
+            processDescriptorQueue()
         }
 
         override fun onCharacteristicChanged(
@@ -512,17 +527,7 @@ class BleAndMqttService : Service() {
                         }
                     }
                 } else {
-                    // Fallback to original hardcoded parsing
-                    if (characteristic.uuid == CHARACTERISTIC_UUID) {
-                        val data = parseTemperatureDeta(value)
-                        val formattedData = "Temperature: $data C"
-                        updateData(formattedData)
-                        publishToMqtt(MQTT_TOPIC, data.toString())
-
-                        Log.i(TAG, "Used fallback parsing for unknown device: $deviceName $characteristicUuid $knownCharacteristic")
-                    } else {
-                        Log.w(TAG, "No configuration found for device: $deviceName, service: $serviceUuid, characteristic: $characteristicUuid")
-                    }
+                    Log.e(TAG, "Failed parsing for unknown device: $deviceName $characteristicUuid $knownCharacteristic")
                 }
             }
         } catch (e: Exception) {
@@ -566,5 +571,28 @@ class BleAndMqttService : Service() {
         } else {
             data.toString()
         }
+    }
+
+    private fun queueDescriptorWrite(descriptor: BluetoothGattDescriptor) {
+        descriptorWriteQueue.add(descriptor)
+        processDescriptorQueue()
+    }
+
+    private fun processDescriptorQueue() {
+        if (isWritingDescriptor || descriptorWriteQueue.isEmpty()) return
+
+        val descriptor = descriptorWriteQueue.removeAt(0)
+        isWritingDescriptor = true
+
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.BLUETOOTH_CONNECT
+            ) != PackageManager.PERMISSION_GRANTED && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+        ) {
+            isWritingDescriptor = false
+            return
+        }
+
+        bluetoothGatt?.writeDescriptor(descriptor)
     }
 }
