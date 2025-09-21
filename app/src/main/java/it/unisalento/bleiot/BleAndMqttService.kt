@@ -249,9 +249,27 @@ class BleAndMqttService : Service() {
         try {
             val device = bluetoothAdapter?.getRemoteDevice(address)
             device?.let {
-                connectedDevice = it
-                updateStatus("Connecting to ${it.name ?: "Unknown Device"}...")
-                bluetoothGatt = it.connectGatt(this, false, gattCallback)
+                // Check if already connected to this device
+                if (connectedDevice?.address == it.address && bluetoothGatt != null) {
+                    updateStatus("Already connected to ${it.name ?: "Unknown Device"}")
+                    return
+                }
+
+                // Check if GATT is connected
+                if (bluetoothGatt != null) {
+                    updateStatus("Disconnecting from previous device...")
+                    disconnectBle()
+                    // Give a small delay for disconnection to complete
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        connectedDevice = it
+                        updateStatus("Connecting to ${it.name ?: "Unknown Device"}...")
+                        bluetoothGatt = it.connectGatt(this, false, gattCallback)
+                    }, 500)
+                } else {
+                    connectedDevice = it
+                    updateStatus("Connecting to ${it.name ?: "Unknown Device"}...")
+                    bluetoothGatt = it.connectGatt(this, false, gattCallback)
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error connecting to device: ${e.message}")
@@ -269,9 +287,6 @@ class BleAndMqttService : Service() {
         }
 
         bluetoothGatt?.disconnect()
-        bluetoothGatt?.close()
-        bluetoothGatt = null
-        connectedDevice = null
     }
 
     // GATT callback
@@ -296,14 +311,24 @@ class BleAndMqttService : Service() {
                     gatt.discoverServices()
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     Log.i(TAG, "Disconnected from GATT server.")
-                    updateStatus("Disconnected from device")
-                    updateNotification("Disconnected from BLE device")
+                    Log.i(TAG,"Disconnected from device ${gatt.device.name ?: "Unknown Device"} by user")
+                    updateStatus("Disconnected from device ${gatt.device.name ?: "Unknown Device"} by user")
+                    updateNotification("Disconnected from BLE device ${gatt.device.name ?: "Unknown Device"} by user")
                     updateData("")
+
+                    // Clean up the GATT connection
+                    gatt.close()
+                    bluetoothGatt = null
+                    connectedDevice = null
                 }
             } else {
                 Log.w(TAG, "Error $status encountered! Disconnecting...")
                 updateStatus("Connection error: $status")
                 gatt.close()
+                bluetoothGatt = null
+                connectedDevice = null
+                updateStatus("Disconnected from device ${gatt.device.name ?: "Unknown Device"} due to a connection error")
+                updateNotification("Disconnected from BLE device ${gatt.device.name ?: "Unknown Device"}")
             }
         }
 
