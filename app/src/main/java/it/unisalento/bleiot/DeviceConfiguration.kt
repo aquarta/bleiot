@@ -124,6 +124,7 @@ class DeviceConfigurationManager private constructor(context: Context) {
             "custom_temperature" -> BleDataParsers.parseCustomTemperature(data)
             "STBatteryStruct" -> BleDataParsers.parseSTBatteryStruct(data)
             "ble_heartrate_hrm" -> BleDataParsers.parseHeartRateMeasurement(data)
+            "ble_battery_level" -> BleDataParsers.parseBatteryLevel(data)
             else -> {
                 Log.w(TAG, "Unknown data type: ${characteristicInfo.dataType}")
                 null
