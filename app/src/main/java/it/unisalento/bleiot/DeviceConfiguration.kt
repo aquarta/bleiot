@@ -71,16 +71,16 @@ class DeviceConfigurationManager private constructor(context: Context) {
                 device.shortName.contains(name, ignoreCase = true) ||
                 name.contains(device.name, ignoreCase = true) ||
                 name.contains(device.shortName, ignoreCase = true)
-            }?.let { return it }
+            }?.let { Log.d(TAG,"Device config found ${deviceName} --> ${it}"); return it }
         }
-        
+
         return null
     }
     
     fun findServiceAndCharacteristic(deviceName: String?, serviceUuid: String, characteristicUuid: String): Pair<ServiceInfo, CharacteristicInfo>? {
         val deviceConfig = findDeviceConfig(deviceName) ?: return null
         Log.i(TAG, "See if deviceName: ${deviceName} ${deviceConfig}")
-        
+
         for (service in deviceConfig.services) {
             Log.i(TAG, "See if match serviceUuid: ${serviceUuid} ${service.uuid}")
             if (service.uuid.equals(serviceUuid, ignoreCase = true)) {
@@ -184,6 +184,72 @@ class DeviceConfigurationManager private constructor(context: Context) {
                     Log.w(TAG, "Battery Parsed : ${ret}")
                     return ret
 
+                } else null
+            }
+            "ble_heartrate_hrm" -> {
+                if (data.size >= 2) {
+                    val flags = data[0].toInt() and 0xFF
+
+                    // Parse flags according to BLE Heart Rate specification
+                    val hrFormat16Bit = (flags and 0x01) != 0  // Bit 0: HR Format (0=UINT8, 1=UINT16)
+                    val sensorContactSupported = (flags and 0x04) != 0  // Bit 2: Sensor Contact Supported
+                    val sensorContactDetected = (flags and 0x02) != 0   // Bit 1: Sensor Contact Detected
+                    val energyExpendedPresent = (flags and 0x08) != 0   // Bit 3: Energy Expended Present
+                    val rrIntervalPresent = (flags and 0x10) != 0       // Bit 4: RR-Interval Present
+
+                    var offset = 1
+
+                    // Parse heart rate value
+                    val heartRate = if (hrFormat16Bit) {
+                        // 16-bit heart rate value (little-endian)
+                        if (data.size >= offset + 2) {
+                            val hr = (data[offset].toInt() and 0xFF) or ((data[offset + 1].toInt() and 0xFF) shl 8)
+                            offset += 2
+                            hr
+                        } else 0
+                    } else {
+                        // 8-bit heart rate value
+                        if (data.size >= offset + 1) {
+                            val hr = data[offset].toInt() and 0xFF
+                            offset += 1
+                            hr
+                        } else 0
+                    }
+
+                    // Parse energy expended (if present)
+                    val energyExpended = if (energyExpendedPresent && data.size >= offset + 2) {
+                        val energy = (data[offset].toInt() and 0xFF) or ((data[offset + 1].toInt() and 0xFF) shl 8)
+                        offset += 2
+                        energy
+                    } else null
+
+                    // Parse RR intervals (if present)
+                    val rrIntervals = mutableListOf<Int>()
+                    if (rrIntervalPresent) {
+                        while (offset + 1 < data.size) {
+                            val rrInterval = (data[offset].toInt() and 0xFF) or ((data[offset + 1].toInt() and 0xFF) shl 8)
+                            rrIntervals.add(rrInterval)
+                            offset += 2
+                        }
+                    }
+
+                    val ret = mutableMapOf<String, Any>(
+                        "heartRate" to heartRate,
+                        "hrFormat16Bit" to hrFormat16Bit,
+                        "sensorContactSupported" to sensorContactSupported,
+                        "sensorContactDetected" to sensorContactDetected,
+                        "energyExpendedPresent" to energyExpendedPresent,
+                        "rrIntervalPresent" to rrIntervalPresent,
+                        "flags" to flags
+                    )
+
+                    energyExpended?.let { ret["energyExpended"] = it }
+                    if (rrIntervals.isNotEmpty()) {
+                        ret["rrIntervals"] = rrIntervals
+                    }
+
+                    Log.i(TAG, "Heart Rate Parsed: HR=$heartRate bpm, Contact=${if(sensorContactDetected) "detected" else "not detected"}")
+                    return ret
                 } else null
             }
             else -> {
