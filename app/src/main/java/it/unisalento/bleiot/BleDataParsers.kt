@@ -145,6 +145,25 @@ object BleDataParsers {
     }
 
     /**
+     * Parses BLE Battery Level structure data
+     *
+     * @param data Raw byte array from the characteristic
+     * @return Map containing parsed battery data, or null if parsing fails
+     */
+    fun parseBatteryLevel(data: ByteArray): Map<String, Any>? {
+        if (data.size < 1) {
+            Log.w(TAG, "Battery Level too short: ${data.size} bytes")
+            return null
+        }
+        val batteryLevel = data[0].toInt()
+        val result = mutableMapOf<String, Any>(
+            "batteryLevel" to batteryLevel,   
+        )
+        Log.i(TAG, "Batter Level : ${result}")
+        return result
+    }
+
+    /**
      * Parses custom temperature data
      *
      * @param data Raw byte array from the characteristic
