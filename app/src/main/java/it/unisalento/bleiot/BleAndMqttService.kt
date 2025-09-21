@@ -311,7 +311,7 @@ class BleAndMqttService : Service() {
                     gatt.discoverServices()
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     Log.i(TAG, "Disconnected from GATT server.")
-                    Log.i(TAG,"Disconnected from device ${gatt.device.name ?: "Unknown Device"} by user")
+                    Log.i(TAG,  "Disconnected from device ${gatt.device.name ?: "Unknown Device"} by user")
                     updateStatus("Disconnected from device ${gatt.device.name ?: "Unknown Device"} by user")
                     updateNotification("Disconnected from BLE device ${gatt.device.name ?: "Unknown Device"} by user")
                     updateData("")

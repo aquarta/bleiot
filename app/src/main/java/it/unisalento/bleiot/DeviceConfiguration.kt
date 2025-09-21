@@ -2,6 +2,8 @@ package it.unisalento.bleiot
 
 import android.content.Context
 import android.util.Log
+import org.json.JSONArray
+import org.json.JSONObject
 import java.util.*
 
 data class DeviceConfiguration(
@@ -78,6 +80,7 @@ class DeviceConfigurationManager private constructor(context: Context) {
     fun findServiceAndCharacteristic(deviceName: String?, serviceUuid: String, characteristicUuid: String): Pair<ServiceInfo, CharacteristicInfo>? {
         val deviceConfig = findDeviceConfig(deviceName) ?: return null
         Log.i(TAG, "See if deviceName: ${deviceName} ${deviceConfig}")
+        
         for (service in deviceConfig.services) {
             Log.i(TAG, "See if match serviceUuid: ${serviceUuid} ${service.uuid}")
             if (service.uuid.equals(serviceUuid, ignoreCase = true)) {
@@ -198,13 +201,129 @@ class DeviceConfigurationManager private constructor(context: Context) {
     }
     
     private fun serializeToJson(config: DeviceConfiguration): String {
-        // Simple JSON serialization - in a real app, you might want to use Gson or kotlinx.serialization
-        return "serialized_config" // Placeholder
+        try {
+            val json = JSONObject()
+
+            // Serialize devices
+            val devicesJson = JSONObject()
+            config.devices.forEach { (key, device) ->
+                val deviceJson = JSONObject().apply {
+                    put("name", device.name)
+                    put("shortName", device.shortName)
+
+                    val servicesArray = JSONArray()
+                    device.services.forEach { service ->
+                        val serviceJson = JSONObject().apply {
+                            put("uuid", service.uuid)
+                            put("name", service.name)
+
+                            val characteristicsArray = JSONArray()
+                            service.characteristics.forEach { characteristic ->
+                                val charJson = JSONObject().apply {
+                                    put("uuid", characteristic.uuid)
+                                    put("name", characteristic.name)
+                                    put("dataType", characteristic.dataType)
+                                    put("mqttTopic", characteristic.mqttTopic)
+                                    characteristic.customParser?.let { put("customParser", it) }
+                                }
+                                characteristicsArray.put(charJson)
+                            }
+                            put("characteristics", characteristicsArray)
+                        }
+                        servicesArray.put(serviceJson)
+                    }
+                    put("services", servicesArray)
+                }
+                devicesJson.put(key, deviceJson)
+            }
+            json.put("devices", devicesJson)
+
+            // Serialize dataTypes
+            val dataTypesJson = JSONObject()
+            config.dataTypes.forEach { (key, dataType) ->
+                val dataTypeJson = JSONObject().apply {
+                    put("size", dataType.size)
+                    put("conversion", dataType.conversion)
+                    dataType.description?.let { put("description", it) }
+                }
+                dataTypesJson.put(key, dataTypeJson)
+            }
+            json.put("dataTypes", dataTypesJson)
+
+            return json.toString()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error serializing config to JSON: ${e.message}")
+            return "{}"
+        }
     }
-    
+
     private fun deserializeFromJson(jsonString: String): DeviceConfiguration? {
-        // Simple JSON deserialization - in a real app, you might want to use Gson or kotlinx.serialization
-        return null // Placeholder
+        try {
+            val json = JSONObject(jsonString)
+
+            // Deserialize devices
+            val devices = mutableMapOf<String, DeviceInfo>()
+            val devicesJson = json.optJSONObject("devices")
+            devicesJson?.keys()?.forEach { deviceKey ->
+                val deviceJson = devicesJson.getJSONObject(deviceKey)
+
+                val services = mutableListOf<ServiceInfo>()
+                val servicesArray = deviceJson.optJSONArray("services")
+                servicesArray?.let { array ->
+                    for (i in 0 until array.length()) {
+                        val serviceJson = array.getJSONObject(i)
+
+                        val characteristics = mutableListOf<CharacteristicInfo>()
+                        val characteristicsArray = serviceJson.optJSONArray("characteristics")
+                        characteristicsArray?.let { charArray ->
+                            for (j in 0 until charArray.length()) {
+                                val charJson = charArray.getJSONObject(j)
+                                characteristics.add(
+                                    CharacteristicInfo(
+                                        uuid = charJson.getString("uuid"),
+                                        name = charJson.getString("name"),
+                                        dataType = charJson.getString("dataType"),
+                                        mqttTopic = charJson.getString("mqttTopic"),
+                                        customParser = charJson.optString("customParser").takeIf { it.isNotEmpty() }
+                                    )
+                                )
+                            }
+                        }
+
+                        services.add(
+                            ServiceInfo(
+                                uuid = serviceJson.getString("uuid"),
+                                name = serviceJson.getString("name"),
+                                characteristics = characteristics
+                            )
+                        )
+                    }
+                }
+
+                devices[deviceKey] = DeviceInfo(
+                    name = deviceJson.getString("name"),
+                    shortName = deviceJson.getString("shortName"),
+                    services = services
+                )
+            }
+
+            // Deserialize dataTypes
+            val dataTypes = mutableMapOf<String, DataTypeInfo>()
+            val dataTypesJson = json.optJSONObject("dataTypes")
+            dataTypesJson?.keys()?.forEach { dataTypeKey ->
+                val dataTypeJson = dataTypesJson.getJSONObject(dataTypeKey)
+                dataTypes[dataTypeKey] = DataTypeInfo(
+                    size = dataTypeJson.getString("size"),
+                    conversion = dataTypeJson.getString("conversion"),
+                    description = dataTypeJson.optString("description").takeIf { it.isNotEmpty() }
+                )
+            }
+
+            return DeviceConfiguration(devices = devices, dataTypes = dataTypes)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error deserializing config from JSON: ${e.message}")
+            return null
+        }
     }
     
     companion object {

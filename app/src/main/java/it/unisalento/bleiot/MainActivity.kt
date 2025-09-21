@@ -60,6 +60,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Initialize device configuration early
+        initializeDeviceConfiguration()
+
         // Initialize the ViewModel with context
         viewModel.initialize(this)
 
@@ -148,6 +151,65 @@ class MainActivity : ComponentActivity() {
         } else {
             viewModel.startScan()
         }
+    }
+
+    private fun initializeDeviceConfiguration() {
+        try {
+            val deviceConfigManager = DeviceConfigurationManager.getInstance(this)
+            val existingConfig = deviceConfigManager.getDeviceConfiguration()
+
+            if (existingConfig == null) {
+                // Create default configuration if none exists
+                createDefaultConfiguration(deviceConfigManager)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "Error initializing device configuration: ${e.message}")
+        }
+    }
+
+    private fun createDefaultConfiguration(deviceConfigManager: DeviceConfigurationManager) {
+        val defaultConfig = DeviceConfiguration(
+            devices = mapOf(
+                "STEVAL-STWINKT1B" to DeviceInfo(
+                    name = "STEVAL-STWINKT1B",
+                    shortName = "STWIN",
+                    services = listOf(
+                        ServiceInfo(
+                            uuid = "00000000-0001-11e1-9ab4-0002a5d5c51b",
+                            name = "MSSensorDemo Service",
+                            characteristics = listOf(
+                                CharacteristicInfo(
+                                    uuid = "00140000-0001-11e1-ac36-0002a5d5c51b",
+                                    name = "Temperature Data",
+                                    dataType = "custom_temperature",
+                                    mqttTopic = "ble/temperature"
+                                ),
+                                CharacteristicInfo(
+                                    uuid = "001c0000-0001-11e1-ac36-0002a5d5c51b",
+                                    name = "Battery Data",
+                                    dataType = "STBatteryStruct",
+                                    mqttTopic = "ble/battery"
+                                )
+                            )
+                        )
+                    )
+                )
+            ),
+            dataTypes = mapOf(
+                "custom_temperature" to DataTypeInfo(
+                    size = "variable",
+                    conversion = "custom",
+                    description = "Temperature data with custom parsing"
+                ),
+                "STBatteryStruct" to DataTypeInfo(
+                    size = "9_bytes",
+                    conversion = "struct",
+                    description = "ST Battery information structure"
+                )
+            )
+        )
+
+        deviceConfigManager.saveConfiguration(defaultConfig)
     }
 
     companion object {
