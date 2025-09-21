@@ -90,33 +90,89 @@ fun BleNotificationApp(
             modifier = modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
-            Column(
+            LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                AppHeader()
+                // Header
+                item {
+                    AppHeader()
+                }
 
-                ScanButton(
-                    text = state.scanButtonText,
-                    onClick = onScanButtonClick
-                )
+                // Scan button
+                item {
+                    ScanButton(
+                        text = state.scanButtonText,
+                        onClick = onScanButtonClick
+                    )
+                }
 
-                // Device list section
-                DeviceListSection(
-                    devicesList = state.devicesList,
-                    isScanning = state.statusText.contains("Scanning"),
-                    connectedDeviceAddress = state.connectedDeviceAddress,
-                    onDeviceClick = onDeviceClick,
-                    onDisconnectClick = onDisconnectClick
-                )
+                // Device list header (if devices exist)
+                if (state.devicesList.isNotEmpty()) {
+                    item {
+                        Text(
+                            text = "Discovered Devices:",
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp)
+                        )
+                    }
+                }
+
+                // Device list items
+                if (state.devicesList.isNotEmpty()) {
+                    items(state.devicesList) { deviceInfo ->
+                        val isConnected = deviceInfo.address == state.connectedDeviceAddress
+
+                        DeviceListItem(
+                            deviceName = deviceInfo.name,
+                            deviceAddress = deviceInfo.address,
+                            isConnected = isConnected,
+                            onClick = {
+                                if (!isConnected) onDeviceClick(deviceInfo.device)
+                            },
+                            onDisconnectClick = {
+                                if (isConnected) onDisconnectClick()
+                            }
+                        )
+                    }
+                } else if (state.statusText.contains("Scanning")) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    }
+                } else {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "No devices found",
+                                modifier = Modifier.alpha(0.6f)
+                            )
+                        }
+                    }
+                }
 
                 // Status and data section
-                StatusCard(
-                    statusText = state.statusText,
-                    dataText = state.dataText
-                )
+                item {
+                    StatusCard(
+                        statusText = state.statusText,
+                        dataText = state.dataText
+                    )
+                }
             }
         }
     }
