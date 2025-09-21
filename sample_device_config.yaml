@@ -22,6 +22,7 @@ devices:
             name: "Heart Rate Measurement"
             dataType: "ble_heartrate_hrm"
             customParser: "parseBLEHRM"
+            mqttTopic: "ble/heartrate"
       - uuid: "0000180f-0000-1000-8000-00805f9b34fb"
         name: "Battery Service"
         characteristics:
