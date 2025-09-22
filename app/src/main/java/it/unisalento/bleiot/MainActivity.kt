@@ -83,8 +83,8 @@ class MainActivity : ComponentActivity() {
                     onDeviceClick = { device ->
                         viewModel.onDeviceClicked(device)
                     },
-                    onDisconnectClick = {
-                        viewModel.disconnectDevice()
+                    onDisconnectClick = { deviceAddress ->
+                        viewModel.disconnectDevice(deviceAddress)
                     },
                     onSettingsClick = {
                         startActivity(Intent(this@MainActivity, SettingsActivity::class.java))
