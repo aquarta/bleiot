@@ -30,7 +30,15 @@ devices:
             name: "Battery Level"
             dataType: "ble_battery_level"
             mqttTopic: "ble/battery"
+      - uuid: "34802252-7185-4d5d-b431-630e7050e8f0"
+        name : "Movesense Whiteboard Service"
+        characteristics:
+          - uuid: "34800001-7185-4d5d-b431-630e7050e8f0"
+            name: "Movesense Whiteboard Write Char"
             
+          - uuid: "34800002-7185-4d5d-b431-630e7050e8f0"
+            name: "Movesense Whiteboard Read Char"
+            dataType: "movesense_read"
   ZephyrTemperature:
     name: "ZephyrTemperature"
     shortName: "ZephyrTemperature"
