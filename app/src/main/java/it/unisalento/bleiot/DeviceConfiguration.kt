@@ -82,10 +82,10 @@ class DeviceConfigurationManager private constructor(context: Context) {
         Log.i(TAG, "See if deviceName: ${deviceName} ${deviceConfig}")
 
         for (service in deviceConfig.services) {
-            Log.i(TAG, "See if match serviceUuid: ${serviceUuid} ${service.uuid}")
+            // Log.i(TAG, "See if match serviceUuid: ${serviceUuid} ${service.uuid}")
             if (service.uuid.equals(serviceUuid, ignoreCase = true)) {
                 for (characteristic in service.characteristics) {
-                    Log.i(TAG, "See if match characteristic: ${characteristic}")
+                    // Log.i(TAG, "See if match characteristic: ${characteristic}")
                     if (characteristic.uuid.equals(characteristicUuid, ignoreCase = true)) {
                         Log.d(TAG, "Pair Found:  ${deviceName} ${serviceUuid} ${characteristic}")
                         return Pair(service, characteristic)
@@ -125,6 +125,7 @@ class DeviceConfigurationManager private constructor(context: Context) {
             "STBatteryStruct" -> BleDataParsers.parseSTBatteryStruct(data)
             "ble_heartrate_hrm" -> BleDataParsers.parseHeartRateMeasurement(data)
             "ble_battery_level" -> BleDataParsers.parseBatteryLevel(data)
+            "movesense_read" -> BleDataParsers.parseMoveSenseChar(data)
             else -> {
                 Log.w(TAG, "Unknown data type: ${characteristicInfo.dataType}")
                 null
