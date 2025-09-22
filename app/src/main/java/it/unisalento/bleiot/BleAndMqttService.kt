@@ -42,6 +42,11 @@ class BleAndMqttService : Service() {
     private val descriptorWriteQueues = mutableMapOf<String, MutableList<BluetoothGattDescriptor>>()
     private val isWritingDescriptors = mutableMapOf<String, Boolean>()
 
+    // Queue for characteristic write operations per device
+    data class CharacteristicWrite(val characteristic: BluetoothGattCharacteristic, val data: ByteArray)
+    private val characteristicWriteQueues = mutableMapOf<String, MutableList<CharacteristicWrite>>()
+    private val isWritingCharacteristics = mutableMapOf<String, Boolean>()
+
     // Service UUID and Characteristic UUID
     private val SERVICE_UUID = UUID.fromString("00000000-0001-11e1-9ab4-0002a5d5c51b")
     private val CHARACTERISTIC_UUID = UUID.fromString("00140000-0001-11e1-ac36-0002a5d5c51b")
@@ -268,6 +273,8 @@ class BleAndMqttService : Service() {
                 connectedDevices[it.address] = it
                 descriptorWriteQueues[it.address] = mutableListOf()
                 isWritingDescriptors[it.address] = false
+                characteristicWriteQueues[it.address] = mutableListOf()
+                isWritingCharacteristics[it.address] = false
 
                 updateStatus("Connecting to ${it.name ?: "Unknown Device"}...")
                 val gatt = it.connectGatt(this, false, gattCallback)
@@ -332,6 +339,8 @@ class BleAndMqttService : Service() {
                     connectedDevices.remove(deviceAddress)
                     descriptorWriteQueues.remove(deviceAddress)
                     isWritingDescriptors.remove(deviceAddress)
+                    characteristicWriteQueues.remove(deviceAddress)
+                    isWritingCharacteristics.remove(deviceAddress)
 
                     // Update data only if this was the last connected device
                     if (connectedDevices.isEmpty()) {
@@ -349,6 +358,8 @@ class BleAndMqttService : Service() {
                 connectedDevices.remove(deviceAddress)
                 descriptorWriteQueues.remove(deviceAddress)
                 isWritingDescriptors.remove(deviceAddress)
+                characteristicWriteQueues.remove(deviceAddress)
+                isWritingCharacteristics.remove(deviceAddress)
 
                 updateStatus("Disconnected from device ${gatt.device.name ?: "Unknown Device"} due to a connection error")
                 updateNotification("Disconnected from BLE device ${gatt.device.name ?: "Unknown Device"}")
@@ -386,6 +397,28 @@ class BleAndMqttService : Service() {
                         if (configPair != null) {
                             val (serviceInfo, characteristicInfo) = configPair
                             Log.i(TAG, "Found configured characteristic: ${characteristicInfo.name}")
+
+                            // Check if this is the Movesense Whiteboard Write Char
+                            if (characteristicInfo.name == "Movesense Whiteboard Write Char") {
+                                // Check characteristic properties before writing
+                                val canWrite = (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE) != 0
+                                val canWriteNoResponse = (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0
+
+                                Log.i(TAG, "Movesense Write Char properties: Write=$canWrite, WriteNoResponse=$canWriteNoResponse, Properties=${characteristic.properties}")
+
+                                if (canWrite || canWriteNoResponse) {
+                                    // Queue ECG measurement command: bytearray([1, 100])+bytearray("/Meas/ECG/200", "utf-8")
+                                    val ecgCommand = byteArrayOf(1, 100) + "/Meas/ECG/200".toByteArray(Charsets.UTF_8)
+                                    Log.i(TAG, "Found Movesense Whiteboard Write Char, queuing ECG measurement command: ${ecgCommand.contentToString()}")
+
+                                    // Add a small delay to ensure all services are fully discovered before writing
+                                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                        queueCharacteristicWrite(gatt.device.address, characteristic, ecgCommand)
+                                    }, 1000) // 1 second delay
+                                } else {
+                                    Log.w(TAG, "Movesense Whiteboard Write Char does not support write operations")
+                                }
+                            }
 
                             // Enable notifications for known characteristics
                             if (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0) {
@@ -443,6 +476,41 @@ class BleAndMqttService : Service() {
             }
             // Process next descriptor in queue for this device
             processDescriptorQueue(deviceAddress)
+        }
+
+        override fun onCharacteristicWrite(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
+            val deviceAddress = gatt.device.address
+            isWritingCharacteristics[deviceAddress] = false
+
+            when (status) {
+                BluetoothGatt.GATT_SUCCESS -> {
+                    Log.i(TAG, "Characteristic write successful for device $deviceAddress, UUID: ${characteristic.uuid}")
+                }
+                BluetoothGatt.GATT_WRITE_NOT_PERMITTED -> {
+                    Log.e(TAG, "Characteristic write failed: WRITE_NOT_PERMITTED for device $deviceAddress")
+                }
+                BluetoothGatt.GATT_INVALID_ATTRIBUTE_LENGTH -> {
+                    Log.e(TAG, "Characteristic write failed: INVALID_ATTRIBUTE_LENGTH for device $deviceAddress")
+                }
+                BluetoothGatt.GATT_INSUFFICIENT_AUTHENTICATION -> {
+                    Log.e(TAG, "Characteristic write failed: INSUFFICIENT_AUTHENTICATION for device $deviceAddress")
+                }
+                BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED -> {
+                    Log.e(TAG, "Characteristic write failed: REQUEST_NOT_SUPPORTED for device $deviceAddress")
+                }
+                BluetoothGatt.GATT_INSUFFICIENT_ENCRYPTION -> {
+                    Log.e(TAG, "Characteristic write failed: INSUFFICIENT_ENCRYPTION for device $deviceAddress")
+                }
+                BluetoothGatt.GATT_CONNECTION_CONGESTED -> {
+                    Log.w(TAG, "Characteristic write failed: CONNECTION_CONGESTED for device $deviceAddress")
+                }
+                else -> {
+                    Log.e(TAG, "Characteristic write failed with unknown status: $status for device $deviceAddress")
+                }
+            }
+
+            // Process next characteristic write in queue for this device
+            processCharacteristicQueue(deviceAddress)
         }
 
         override fun onCharacteristicChanged(
@@ -584,19 +652,19 @@ class BleAndMqttService : Service() {
         }
     }
 
-    private fun parseSTBattery(data: ByteArray): Double {
-        val battValue = data.sliceArray(6 until data.size).foldIndexed(0) { index, acc, byte ->
-            acc or ((byte.toInt() and 0xFF) shl (8 * index))
-        }
-        return battValue.toDouble()
-    }
+    // private fun parseSTBattery(data: ByteArray): Double {
+    //     val battValue = data.sliceArray(6 until data.size).foldIndexed(0) { index, acc, byte ->
+    //         acc or ((byte.toInt() and 0xFF) shl (8 * index))
+    //     }
+    //     return battValue.toDouble()
+    // }
 
-    private fun parseTemperatureDeta(data: ByteArray): Double {
-        val tempValue = data.sliceArray(6 until data.size).foldIndexed(0) { index, acc, byte ->
-            acc or ((byte.toInt() and 0xFF) shl (8 * index))
-        }
-        return (tempValue/10).toDouble()
-    }
+    // private fun parseTemperatureDeta(data: ByteArray): Double {
+    //     val tempValue = data.sliceArray(6 until data.size).foldIndexed(0) { index, acc, byte ->
+    //         acc or ((byte.toInt() and 0xFF) shl (8 * index))
+    //     }
+    //     return (tempValue/10).toDouble()
+    // }
 
     // Update status helpers
     private fun updateStatus(status: String) {
@@ -646,5 +714,93 @@ class BleAndMqttService : Service() {
         }
 
         gattConnections[deviceAddress]?.writeDescriptor(descriptor)
+    }
+
+    private fun queueCharacteristicWrite(deviceAddress: String, characteristic: BluetoothGattCharacteristic, data: ByteArray) {
+        characteristicWriteQueues[deviceAddress]?.add(CharacteristicWrite(characteristic, data))
+        processCharacteristicQueue(deviceAddress)
+    }
+
+    private fun processCharacteristicQueue(deviceAddress: String) {
+        val queue = characteristicWriteQueues[deviceAddress] ?: return
+        val isWriting = isWritingCharacteristics[deviceAddress] ?: false
+
+        if (isWriting || queue.isEmpty()) {
+            Log.d(TAG, "Skipping characteristic queue processing: isWriting=$isWriting, queueEmpty=${queue.isEmpty()}")
+            return
+        }
+
+        val write = queue.removeAt(0)
+        isWritingCharacteristics[deviceAddress] = true
+
+        Log.d(TAG, "Processing characteristic write for device $deviceAddress, data: ${write.data.contentToString()}")
+
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.BLUETOOTH_CONNECT
+            ) != PackageManager.PERMISSION_GRANTED && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+        ) {
+            Log.w(TAG, "Missing BLUETOOTH_CONNECT permission for characteristic write")
+            isWritingCharacteristics[deviceAddress] = false
+            return
+        }
+
+        val gatt = gattConnections[deviceAddress]
+        if (gatt == null) {
+            Log.w(TAG, "No GATT connection found for device $deviceAddress")
+            isWritingCharacteristics[deviceAddress] = false
+            return
+        }
+
+        // Check GATT connection state
+        val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+        val connectionState = bluetoothManager.getConnectionState(gatt.device, BluetoothProfile.GATT)
+        Log.d(TAG, "GATT connection state: $connectionState (2=CONNECTED)")
+
+        if (connectionState != BluetoothProfile.STATE_CONNECTED) {
+            Log.w(TAG, "GATT not connected, cannot write characteristic")
+            isWritingCharacteristics[deviceAddress] = false
+            return
+        }
+
+        // Check characteristic write permissions
+        val canWrite = (write.characteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE) != 0
+        val canWriteNoResponse = (write.characteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0
+
+        Log.d(TAG, "Characteristic write capabilities: canWrite=$canWrite, canWriteNoResponse=$canWriteNoResponse, properties=${write.characteristic.properties}")
+
+        if (!canWrite && !canWriteNoResponse) {
+            Log.w(TAG, "Characteristic does not support write operations. Properties: ${write.characteristic.properties}")
+            isWritingCharacteristics[deviceAddress] = false
+            processCharacteristicQueue(deviceAddress) // Process next item
+            return
+        }
+
+        // Try WRITE_TYPE_NO_RESPONSE first (often more reliable for MoveSense)
+        var success = false
+
+        if (canWriteNoResponse) {
+            write.characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+            write.characteristic.value = write.data
+            success = gatt.writeCharacteristic(write.characteristic)
+            Log.d(TAG, "Attempted WRITE_TYPE_NO_RESPONSE: success=$success")
+        }
+
+        // If no response write failed and normal write is supported, try that
+        if (!success && canWrite) {
+            write.characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+            write.characteristic.value = write.data
+            success = gatt.writeCharacteristic(write.characteristic)
+            Log.d(TAG, "Attempted WRITE_TYPE_DEFAULT: success=$success")
+        }
+
+        Log.i(TAG, "Characteristic write initiated: success=$success for device $deviceAddress, UUID: ${write.characteristic.uuid}")
+
+        if (!success) {
+            Log.e(TAG, "Failed to initiate characteristic write for device $deviceAddress. All write types failed.")
+            isWritingCharacteristics[deviceAddress] = false
+            // Process next item in queue
+            processCharacteristicQueue(deviceAddress)
+        }
     }
 }

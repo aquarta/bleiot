@@ -161,7 +161,7 @@ object BleDataParsers {
      */
     fun parseMoveSenseChar(data: ByteArray): Map<String, Any>? {
         if (data.size < 2) {
-            Log.w(TAG, "MoveSense Notifications too short: ${data.size} bytes")
+            Log.w(TAG, "MoveSense Notifications too short: ${data.size} bytes: ${data.toString()}")
             return null
         }
 
