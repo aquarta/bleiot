@@ -90,12 +90,8 @@ class BleViewModel : ViewModel() {
         bleAndMqttService?.setCallbacks(
             statusCallback = { status ->
                 updateStatus(status)
-                // If the device disconnected, update the UI state
-                if (status.contains("Disconnected")) {
-                    _uiState.update { currentState ->
-                        currentState.copy(connectedDeviceAddress = null)
-                    }
-                }
+                // Update connected devices list from service
+                updateConnectedDevices()
             },
             dataCallback = { data ->
                 updateData(data)
@@ -244,23 +240,21 @@ class BleViewModel : ViewModel() {
                     context.startService(serviceIntent)
                 }
 
-                // Update connected device in UI state
-                _uiState.update { currentState ->
-                    currentState.copy(connectedDeviceAddress = deviceAddress)
-                }
+                // Update connected devices in UI state will be done by callback
             } else {
                 updateStatus("Service not bound, cannot connect")
             }
         }
     }
 
-    fun     disconnectDevice() {
+    fun disconnectDevice(deviceAddress: String) {
         appContext?.let { context ->
             // Send disconnect command to service
-            Log.e(TAG, "Start device disconnection view")
+            Log.e(TAG, "Start device disconnection view for $deviceAddress")
             if (bleAndMqttService != null) {
                 val serviceIntent = Intent(context, BleAndMqttService::class.java).apply {
                     action = "DISCONNECT_BLE"
+                    putExtra("deviceAddress", deviceAddress)
                 }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     context.startForegroundService(serviceIntent)
@@ -268,15 +262,29 @@ class BleViewModel : ViewModel() {
                     context.startService(serviceIntent)
                 }
 
-                // Update UI state to reflect disconnection
-                _uiState.update { currentState ->
-                    currentState.copy(
-                        connectedDeviceAddress = null,
-                        dataText = "No data received"
-                    )
+                updateStatus("Disconnecting from device $deviceAddress")
+            } else {
+                updateStatus("Service not bound, cannot disconnect")
+            }
+        }
+    }
+
+    fun disconnectAllDevices() {
+        appContext?.let { context ->
+            // Send disconnect command without device address to disconnect all
+            Log.e(TAG, "Start disconnecting all devices")
+            if (bleAndMqttService != null) {
+                val serviceIntent = Intent(context, BleAndMqttService::class.java).apply {
+                    action = "DISCONNECT_BLE"
+                    // No deviceAddress = disconnect all
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(serviceIntent)
+                } else {
+                    context.startService(serviceIntent)
                 }
 
-                updateStatus("Disconnected from device")
+                updateStatus("Disconnecting from all devices")
             } else {
                 updateStatus("Service not bound, cannot disconnect")
             }
@@ -349,32 +357,19 @@ class BleViewModel : ViewModel() {
         }
     }
 
+    private fun updateConnectedDevices() {
+        val connectedAddresses = bleAndMqttService?.getConnectedDeviceAddresses() ?: emptySet()
+        _uiState.update { currentState ->
+            currentState.copy(connectedDeviceAddresses = connectedAddresses)
+        }
+    }
+
     // Update UI state helpers
     fun updateStatus(status: String) {
         _uiState.update { currentState ->
             currentState.copy(statusText = status)
         }
 
-        // Detect connection status messages to track connected device
-        if (status.startsWith("Connected to")) {
-            // Extract device address from service callbacks if possible
-            // This is a fallback in case the address wasn't set during the connect action
-            appContext?.let { context ->
-                if (ActivityCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.BLUETOOTH_CONNECT
-                    ) == PackageManager.PERMISSION_GRANTED || Build.VERSION.SDK_INT < Build.VERSION_CODES.S
-                ) {
-                    // Get the list of connected devices from the Bluetooth manager
-                    val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
-                    bluetoothManager?.getConnectedDevices(BluetoothProfile.GATT)?.firstOrNull()?.let { device ->
-                        _uiState.update { currentState ->
-                            currentState.copy(connectedDeviceAddress = device.address)
-                        }
-                    }
-                }
-            }
-        }
     }
 
     private fun updateData(data: String) {
@@ -432,7 +427,7 @@ data class BleUiState(
     val dataText: String = "No data received",
     val scanButtonText: String = "Start Scan",
     val devicesList: List<BleDeviceInfo> = emptyList(),
-    val connectedDeviceAddress: String? = null
+    val connectedDeviceAddresses: Set<String> = emptySet()
 )
 
 // Data class to represent a Bluetooth device in the UI

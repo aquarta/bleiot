@@ -26,7 +26,7 @@ fun MainScreenWithMenu(
     uiState: StateFlow<BleUiState>,
     onScanButtonClick: () -> Unit,
     onDeviceClick: (BluetoothDevice) -> Unit,
-    onDisconnectClick: () -> Unit,
+    onDisconnectClick: (String) -> Unit,
     onSettingsClick: () -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
@@ -80,7 +80,7 @@ fun BleNotificationApp(
     uiState: StateFlow<BleUiState>,
     onScanButtonClick: () -> Unit,
     onDeviceClick: (BluetoothDevice) -> Unit,
-    onDisconnectClick: () -> Unit,
+    onDisconnectClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val state by uiState.collectAsState()
@@ -125,7 +125,7 @@ fun BleNotificationApp(
                 // Device list items
                 if (state.devicesList.isNotEmpty()) {
                     items(state.devicesList) { deviceInfo ->
-                        val isConnected = deviceInfo.address == state.connectedDeviceAddress
+                        val isConnected = deviceInfo.address in state.connectedDeviceAddresses
 
                         DeviceListItem(
                             deviceName = deviceInfo.name,
@@ -135,7 +135,7 @@ fun BleNotificationApp(
                                 if (!isConnected) onDeviceClick(deviceInfo.device)
                             },
                             onDisconnectClick = {
-                                if (isConnected) onDisconnectClick()
+                                if (isConnected) onDisconnectClick(deviceInfo.address)
                             }
                         )
                     }

@@ -35,12 +35,12 @@ class BleAndMqttService : Service() {
 
     // BLE properties
     private var bluetoothAdapter: BluetoothAdapter? = null
-    private var bluetoothGatt: BluetoothGatt? = null
-    private var connectedDevice: BluetoothDevice? = null
+    private val connectedDevices = mutableMapOf<String, BluetoothDevice>()
+    private val gattConnections = mutableMapOf<String, BluetoothGatt>()
 
-    // Queue for descriptor operations
-    private val descriptorWriteQueue = mutableListOf<BluetoothGattDescriptor>()
-    private var isWritingDescriptor = false
+    // Queue for descriptor operations per device
+    private val descriptorWriteQueues = mutableMapOf<String, MutableList<BluetoothGattDescriptor>>()
+    private val isWritingDescriptors = mutableMapOf<String, Boolean>()
 
     // Service UUID and Characteristic UUID
     private val SERVICE_UUID = UUID.fromString("00000000-0001-11e1-9ab4-0002a5d5c51b")
@@ -86,8 +86,9 @@ class BleAndMqttService : Service() {
                 }
             }
             "DISCONNECT_BLE" -> {
-                Log.i(TAG, "received device disconnection command")
-                disconnectBle()
+                val deviceAddress = intent.getStringExtra("deviceAddress")
+                Log.i(TAG, "received device disconnection command for $deviceAddress")
+                disconnectBle(deviceAddress)
             }
             "STOP_SERVICE" -> {
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -111,6 +112,14 @@ class BleAndMqttService : Service() {
     fun setCallbacks(statusCallback: (String) -> Unit, dataCallback: (String) -> Unit) {
         this.statusCallback = statusCallback
         this.dataCallback = dataCallback
+    }
+
+    fun getConnectedDevices(): List<BluetoothDevice> {
+        return connectedDevices.values.toList()
+    }
+
+    fun getConnectedDeviceAddresses(): Set<String> {
+        return connectedDevices.keys.toSet()
     }
 
     fun reloadMqttSettings() {
@@ -250,26 +259,19 @@ class BleAndMqttService : Service() {
             val device = bluetoothAdapter?.getRemoteDevice(address)
             device?.let {
                 // Check if already connected to this device
-                if (connectedDevice?.address == it.address && bluetoothGatt != null) {
+                if (connectedDevices.containsKey(it.address)) {
                     updateStatus("Already connected to ${it.name ?: "Unknown Device"}")
                     return
                 }
 
-                // Check if GATT is connected
-                if (bluetoothGatt != null) {
-                    updateStatus("Disconnecting from previous device...")
-                    disconnectBle()
-                    // Give a small delay for disconnection to complete
-                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                        connectedDevice = it
-                        updateStatus("Connecting to ${it.name ?: "Unknown Device"}...")
-                        bluetoothGatt = it.connectGatt(this, false, gattCallback)
-                    }, 500)
-                } else {
-                    connectedDevice = it
-                    updateStatus("Connecting to ${it.name ?: "Unknown Device"}...")
-                    bluetoothGatt = it.connectGatt(this, false, gattCallback)
-                }
+                // Connect to the new device (no need to disconnect others)
+                connectedDevices[it.address] = it
+                descriptorWriteQueues[it.address] = mutableListOf()
+                isWritingDescriptors[it.address] = false
+
+                updateStatus("Connecting to ${it.name ?: "Unknown Device"}...")
+                val gatt = it.connectGatt(this, false, gattCallback)
+                gattConnections[it.address] = gatt
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error connecting to device: ${e.message}")
@@ -277,7 +279,7 @@ class BleAndMqttService : Service() {
         }
     }
 
-    private fun disconnectBle() {
+    private fun disconnectBle(deviceAddress: String? = null) {
         if (ActivityCompat.checkSelfPermission(
                 this,
                 Manifest.permission.BLUETOOTH_CONNECT
@@ -286,7 +288,15 @@ class BleAndMqttService : Service() {
             return
         }
 
-        bluetoothGatt?.disconnect()
+        if (deviceAddress != null) {
+            // Disconnect specific device
+            gattConnections[deviceAddress]?.disconnect()
+        } else {
+            // Disconnect all devices
+            gattConnections.values.forEach { gatt ->
+                gatt.disconnect()
+            }
+        }
     }
 
     // GATT callback
@@ -310,23 +320,36 @@ class BleAndMqttService : Service() {
                     // Discover services
                     gatt.discoverServices()
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                    val deviceAddress = gatt.device.address
                     Log.i(TAG, "Disconnected from GATT server.")
-                    Log.i(TAG,  "Disconnected from device ${gatt.device.name ?: "Unknown Device"} by user")
-                    updateStatus("Disconnected from device ${gatt.device.name ?: "Unknown Device"} by user")
-                    updateNotification("Disconnected from BLE device ${gatt.device.name ?: "Unknown Device"} by user")
-                    updateData("")
+                    Log.i(TAG, "Disconnected from device ${gatt.device.name ?: "Unknown Device"} ($deviceAddress)")
+                    updateStatus("Disconnected from device ${gatt.device.name ?: "Unknown Device"}")
+                    updateNotification("Disconnected from BLE device ${gatt.device.name ?: "Unknown Device"}")
 
-                    // Clean up the GATT connection
+                    // Clean up the specific GATT connection
                     gatt.close()
-                    bluetoothGatt = null
-                    connectedDevice = null
+                    gattConnections.remove(deviceAddress)
+                    connectedDevices.remove(deviceAddress)
+                    descriptorWriteQueues.remove(deviceAddress)
+                    isWritingDescriptors.remove(deviceAddress)
+
+                    // Update data only if this was the last connected device
+                    if (connectedDevices.isEmpty()) {
+                        updateData("")
+                    }
                 }
             } else {
+                val deviceAddress = gatt.device.address
                 Log.w(TAG, "Error $status encountered! Disconnecting...")
                 updateStatus("Connection error: $status")
                 gatt.close()
-                bluetoothGatt = null
-                connectedDevice = null
+
+                // Clean up the specific device on error
+                gattConnections.remove(deviceAddress)
+                connectedDevices.remove(deviceAddress)
+                descriptorWriteQueues.remove(deviceAddress)
+                isWritingDescriptors.remove(deviceAddress)
+
                 updateStatus("Disconnected from device ${gatt.device.name ?: "Unknown Device"} due to a connection error")
                 updateNotification("Disconnected from BLE device ${gatt.device.name ?: "Unknown Device"}")
             }
@@ -373,7 +396,7 @@ class BleAndMqttService : Service() {
                                 val descriptor = characteristic.getDescriptor(desc_uuid)
                                 if (descriptor != null) {
                                     descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
-                                    queueDescriptorWrite(descriptor)
+                                    queueDescriptorWrite(gatt.device.address, descriptor)
                                     enabledCharacteristics++
                                     Log.i(TAG, "Queued notifications for ${characteristicInfo.name}")
                                 }
@@ -390,7 +413,7 @@ class BleAndMqttService : Service() {
                                     val descriptor = characteristic.getDescriptor(desc_uuid)
                                     if (descriptor != null) {
                                         descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
-                                        queueDescriptorWrite(descriptor)
+                                        queueDescriptorWrite(gatt.device.address, descriptor)
                                         enabledCharacteristics++
                                         Log.i(TAG, "Queued notifications for fallback characteristic")
                                     }
@@ -411,14 +434,15 @@ class BleAndMqttService : Service() {
         }
 
         override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
-            isWritingDescriptor = false
+            val deviceAddress = gatt.device.address
+            isWritingDescriptors[deviceAddress] = false
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                Log.d(TAG, "Descriptor write successful")
+                Log.d(TAG, "Descriptor write successful for device $deviceAddress")
             } else {
-                Log.w(TAG, "Descriptor write failed with status: $status")
+                Log.w(TAG, "Descriptor write failed with status: $status for device $deviceAddress")
             }
-            // Process next descriptor in queue
-            processDescriptorQueue()
+            // Process next descriptor in queue for this device
+            processDescriptorQueue(deviceAddress)
         }
 
         override fun onCharacteristicChanged(
@@ -598,26 +622,29 @@ class BleAndMqttService : Service() {
         }
     }
 
-    private fun queueDescriptorWrite(descriptor: BluetoothGattDescriptor) {
-        descriptorWriteQueue.add(descriptor)
-        processDescriptorQueue()
+    private fun queueDescriptorWrite(deviceAddress: String, descriptor: BluetoothGattDescriptor) {
+        descriptorWriteQueues[deviceAddress]?.add(descriptor)
+        processDescriptorQueue(deviceAddress)
     }
 
-    private fun processDescriptorQueue() {
-        if (isWritingDescriptor || descriptorWriteQueue.isEmpty()) return
+    private fun processDescriptorQueue(deviceAddress: String) {
+        val queue = descriptorWriteQueues[deviceAddress] ?: return
+        val isWriting = isWritingDescriptors[deviceAddress] ?: false
 
-        val descriptor = descriptorWriteQueue.removeAt(0)
-        isWritingDescriptor = true
+        if (isWriting || queue.isEmpty()) return
+
+        val descriptor = queue.removeAt(0)
+        isWritingDescriptors[deviceAddress] = true
 
         if (ActivityCompat.checkSelfPermission(
                 this,
                 Manifest.permission.BLUETOOTH_CONNECT
             ) != PackageManager.PERMISSION_GRANTED && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
         ) {
-            isWritingDescriptor = false
+            isWritingDescriptors[deviceAddress] = false
             return
         }
 
-        bluetoothGatt?.writeDescriptor(descriptor)
+        gattConnections[deviceAddress]?.writeDescriptor(descriptor)
     }
 }
