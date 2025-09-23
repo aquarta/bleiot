@@ -9,8 +9,9 @@ object BleDataParsers {
     private const val TAG = "BleDataParsers"
 
     // MoveSense packet type constants
-    private const val PACKET_TYPE_DATA = 1
-    private const val PACKET_TYPE_DATA_PART2 = 2
+    // https://www.movesense.com/docs/esw/gatt_sensordata_protocol/#subscribe
+    private const val PACKET_TYPE_DATA = 2
+    private const val PACKET_TYPE_DATA_PART2 = 3
 
     // State for ongoing multi-part data updates
     private var ongoingDataUpdate: ByteArray? = null

@@ -414,7 +414,7 @@ class BleAndMqttService : Service() {
                                     // Add a small delay to ensure all services are fully discovered before writing
                                     android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                                         queueCharacteristicWrite(gatt.device.address, characteristic, ecgCommand)
-                                    }, 1000) // 1 second delay
+                                    }, 10000) // 1 second delay
                                 } else {
                                     Log.w(TAG, "Movesense Whiteboard Write Char does not support write operations")
                                 }
