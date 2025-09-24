@@ -15,14 +15,14 @@ devices:
     name: "MoveSense"
     shortName: "MoveSense"
     services:
-      - uuid: "0000180d-0000-1000-8000-00805f9b34fb"
-        name: "Heart Rate Service"
-        characteristics:
-          - uuid: "00002a37-0000-1000-8000-00805f9b34fb"
-            name: "Heart Rate Measurement"
-            dataType: "ble_heartrate_hrm"
-            customParser: "parseBLEHRM"
-            mqttTopic: "ble/heartrate"
+#      - uuid: "0000180d-0000-1000-8000-00805f9b34fb"
+#        name: "Heart Rate Service"
+#        characteristics:
+#          - uuid: "00002a37-0000-1000-8000-00805f9b34fb"
+#            name: "Heart Rate Measurement"
+#            dataType: "ble_heartrate_hrm"
+#            customParser: "parseBLEHRM"
+#            mqttTopic: "ble/heartrate"
       - uuid: "0000180f-0000-1000-8000-00805f9b34fb"
         name: "Battery Service"
         characteristics:
@@ -39,6 +39,7 @@ devices:
           - uuid: "34800002-7185-4d5d-b431-630e7050e8f0"
             name: "Movesense Whiteboard Read Char"
             dataType: "movesense_read"
+            mqttTopic: "ble/ecg"
   ZephyrTemperature:
     name: "ZephyrTemperature"
     shortName: "ZephyrTemperature"
