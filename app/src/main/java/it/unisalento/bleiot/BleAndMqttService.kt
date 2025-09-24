@@ -400,6 +400,7 @@ class BleAndMqttService : Service() {
 
                             // Check if this is the Movesense Whiteboard Write Char
                             if (characteristicInfo.name == "Movesense Whiteboard Write Char") {
+                                val rate = 200;
                                 // Check characteristic properties before writing
                                 val canWrite = (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE) != 0
                                 val canWriteNoResponse = (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0
@@ -408,7 +409,7 @@ class BleAndMqttService : Service() {
 
                                 if (canWrite || canWriteNoResponse) {
                                     // Queue ECG measurement command: bytearray([1, 100])+bytearray("/Meas/ECG/200", "utf-8")
-                                    val ecgCommand = byteArrayOf(1, 100) + "/Meas/ECG/200".toByteArray(Charsets.UTF_8)
+                                    val ecgCommand = byteArrayOf(1, 100) + "/Meas/ECG/${rate}".toByteArray(Charsets.UTF_8)
                                     Log.i(TAG, "Found Movesense Whiteboard Write Char, queuing ECG measurement command: ${ecgCommand.contentToString()}")
 
                                     // Add a small delay to ensure all services are fully discovered before writing
