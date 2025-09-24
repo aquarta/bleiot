@@ -165,7 +165,7 @@ object BleDataParsers {
             Log.w(TAG, "MoveSense Notifications too short: ${data.size} bytes: ${data.toString()}")
             return null
         }
-
+        val rate=200;
         try {
             val packetType = data[0].toInt() and 0xFF
             val reference = data[1].toInt() and 0xFF
@@ -176,7 +176,7 @@ object BleDataParsers {
                 PACKET_TYPE_DATA -> {
                     if (reference == 100) {
                         // ECG data (reference 100) fits in one packet
-                        return parseECGData(data)
+                        return parseECGData(data,rate)
                     } else {
                         // Store first part of the incoming data for multi-part packets
                         ongoingDataUpdate = data
@@ -212,7 +212,7 @@ object BleDataParsers {
     /**
      * Parses ECG data from MoveSense device
      */
-    private fun parseECGData(data: ByteArray): Map<String, Any>? {
+    private fun parseECGData(data: ByteArray, rate: Int): Map<String, Any>? {
         if (data.size < 6 + 16 * 4) {
             Log.w(TAG, "ECG data too short: ${data.size} bytes")
             return null
@@ -227,7 +227,7 @@ object BleDataParsers {
             // ECG package starts with timestamp and then array of 16 samples
             for (i in 0 until 16) {
                 // Interpolate timestamp within the data notification
-                val rowTimestamp = timestamp + (i * 1000 / 200)
+                val rowTimestamp = timestamp + (i * 1000 / rate)
 
                 // Sample scaling is 0.38 uV/sample, convert to mV
                 val sampleOffset = 6 + i * 4
@@ -235,7 +235,7 @@ object BleDataParsers {
                 val sampleMV = sampleRaw * 0.38 * 0.001
 
                 ecgSamples.add(mapOf(
-                    "timestamp" to rowTimestamp,
+                    "sample_timestamp" to rowTimestamp,
                     "value_mV" to sampleMV,
                     "sample_index" to i
                 ))
@@ -245,6 +245,7 @@ object BleDataParsers {
                 "type" to "ECG",
                 "reference" to 100,
                 "base_timestamp" to timestamp,
+                "rate" to rate,
                 "samples" to ecgSamples
             )
 
