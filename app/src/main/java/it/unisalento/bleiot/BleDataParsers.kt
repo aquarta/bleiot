@@ -10,6 +10,7 @@ object BleDataParsers {
 
     // MoveSense packet type constants
     // https://www.movesense.com/docs/esw/gatt_sensordata_protocol/#subscribe
+    private const val PACKET_TYPE_RESP = 1
     private const val PACKET_TYPE_DATA = 2
     private const val PACKET_TYPE_DATA_PART2 = 3
 
@@ -166,6 +167,7 @@ object BleDataParsers {
             return null
         }
         val rate=200;
+        val imuRate=104;
         try {
             val packetType = data[0].toInt() and 0xFF
             val reference = data[1].toInt() and 0xFF
@@ -173,11 +175,21 @@ object BleDataParsers {
             Log.d(TAG, "MoveSense packet type: $packetType, reference: $reference")
 
             when (packetType) {
+                PACKET_TYPE_RESP -> {
+                    Log.w(TAG, "Received PACKET_TYPE_RESP ${data}")
+                    return null
+                }
                 PACKET_TYPE_DATA -> {
                     if (reference == 100) {
                         // ECG data (reference 100) fits in one packet
                         return parseECGData(data,rate)
-                    } else {
+                    }
+//                    else if (reference == 99) {
+//                        // ECG data (reference 100) fits in one packet
+//                        return parseIMU9Data(data,imuRate)
+//                    }
+                    else {
+                        // for IMU9 data does not fit in 1 packet so we waiting for PACKET_TYPE_DATA_PART2
                         // Store first part of the incoming data for multi-part packets
                         ongoingDataUpdate = data
                         Log.d(TAG, "Stored first part of multi-part data, reference: $reference")
@@ -191,7 +203,7 @@ object BleDataParsers {
                         // Create combined data (skip type_id + ref num of the data_part2)
                         val combinedData = firstPart + data.sliceArray(2 until data.size)
                         ongoingDataUpdate = null
-                        return parseIMU9Data(combinedData)
+                        return parseIMU9Data(combinedData,imuRate)
                     } else {
                         Log.w(TAG, "Received PACKET_TYPE_DATA_PART2 without first part")
                         return null
@@ -217,7 +229,6 @@ object BleDataParsers {
             Log.w(TAG, "ECG data too short: ${data.size} bytes")
             return null
         }
-
         try {
             // Extract timestamp (32-bit little-endian at offset 2)
             val timestamp = getUInt32LE(data, 2)
@@ -261,7 +272,7 @@ object BleDataParsers {
     /**
      * Parses IMU9 data from MoveSense device
      */
-    private fun parseIMU9Data(data: ByteArray): Map<String, Any>? {
+    private fun parseIMU9Data(data: ByteArray, imuRate: Int): Map<String, Any>? {
         if (data.size < 6 + 8 * 3 * 3 * 4) { // 8 samples * 3 sensors * 3 axes * 4 bytes
             Log.w(TAG, "IMU9 data too short: ${data.size} bytes")
             return null
