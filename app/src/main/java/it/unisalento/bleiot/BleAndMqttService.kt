@@ -16,6 +16,11 @@ import org.eclipse.paho.client.mqttv3.*
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 import org.json.JSONObject
 import java.util.*
+import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_COMMAND_ID
+import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_HR_ID
+import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_TEMP_ID
+import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_IMU_ID
+import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_ECG_ID
 
 private const val CCCD = "00002902-0000-1000-8000-00805f9b34fb"
 
@@ -409,17 +414,22 @@ class BleAndMqttService : Service() {
                                 Log.i(TAG, "Movesense Write Char properties: Write=$canWrite, WriteNoResponse=$canWriteNoResponse, Properties=${characteristic.properties}")
 
                                 if (canWrite || canWriteNoResponse) {
-                                    // Queue ECG measurement command: bytearray([1, 100])+bytearray("/Meas/ECG/200", "utf-8")
-                                    //val ecgCommand = byteArrayOf(1, 100) + "/Meas/ECG/${rate}".toByteArray(Charsets.UTF_8)
-                                    //Log.i(TAG, "Found Movesense GATT Sensor Data Write Char, queuing ECG measurement command: ${ecgCommand.contentToString()}")
-                                    // Queue IMU measurement command: bytearray([1, 99])+bytearray("/Meas/IMU/200", "utf-8")
-                                    val imuCommand = byteArrayOf(1, 99) + "/Meas/IMU9/${imuRate}".toByteArray(Charsets.UTF_8)
-                                    Log.i(TAG, "Found Movesense GATT Sensor Data Write Char, queuing IMU9 measurement command: ${imuCommand.contentToString()}")
 
-                                    // Add a small delay to ensure all services are fully discovered before writing
-                                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                                        queueCharacteristicWrite(gatt.device.address, characteristic, imuCommand)
-                                    }, 10000) // 1 second delay
+                                    val commands = listOf(
+                                                    byteArrayOf(MS_GSP_COMMAND_ID, MS_GSP_ECG_ID) + "/Meas/ECG/${rate}".toByteArray(Charsets.UTF_8),
+                                                    byteArrayOf(MS_GSP_COMMAND_ID, MS_GSP_IMU_ID) + "/Meas/IMU9/${imuRate}".toByteArray(Charsets.UTF_8),
+                                                    byteArrayOf(MS_GSP_COMMAND_ID, MS_GSP_HR_ID) + "/Meas/HR".toByteArray(Charsets.UTF_8),
+                                    )
+
+                                    // Iterate over commands with delays
+                                    commands.forEachIndexed { index, command ->
+                                        Log.i(TAG, "Found Movesense GATT Sensor Data Write Char, queuing measurement command: ${command.contentToString()}")
+                                        // Add a small delay to ensure all services are fully discovered before writing
+                                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                            queueCharacteristicWrite(gatt.device.address, characteristic, command)
+                                        }, 5000L + (index * 1000L)) // 5s for first, 6s for second, etc.
+                                    }
+                                    
                                 } else {
                                     Log.w(TAG, "Movesense Whiteboard Write Char does not support write operations")
                                 }

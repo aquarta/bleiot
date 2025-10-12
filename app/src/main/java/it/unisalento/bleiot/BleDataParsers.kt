@@ -1,6 +1,9 @@
 package it.unisalento.bleiot
 
 import android.util.Log
+import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_HR_ID
+import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_IMU_ID
+import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_ECG_ID
 
 /**
  * Collection of BLE data parsers for different device types and characteristics
@@ -180,16 +183,23 @@ object BleDataParsers {
                     return null
                 }
                 PACKET_TYPE_DATA -> {
-                    if (reference == 100) {
+                    if (reference.toByte() == MS_GSP_ECG_ID) {
                         // ECG data (reference 100) fits in one packet
                         return parseECGData(data,rate)
                     }
-                    else {
+                    else if(reference.toByte() == MS_GSP_IMU_ID) {
                         // for IMU9 data does not fit in 1 packet so we waiting for PACKET_TYPE_DATA_PART2
                         // Store first part of the incoming data for multi-part packets
                         ongoingDataUpdate = data
                         Log.d(TAG, "Stored first part of multi-part data, reference: $reference")
                         return null // Wait for second part
+                    }
+                    else if(reference.toByte() == MS_GSP_HR_ID) {
+                        return parseHRData(data)
+                    }
+                    else {
+                        Log.e(TAG, "$reference ID not found or not handled in data parser")
+                        return null
                     }
                 }
                 PACKET_TYPE_DATA_PART2 -> {
@@ -215,6 +225,28 @@ object BleDataParsers {
             ongoingDataUpdate = null // Reset state on error
             return null
         }
+    }
+
+    private fun parseHRData(data: ByteArray): Map<String, Any>? {
+        if (data.size < 6) {
+            Log.w(TAG, "HR data too short: ${data.size} bytes")
+            return null
+        }
+        try {
+            // Extract timestamp (32-bit little-endian at offset 2)
+            val hr = getFloat32LE(data, 2)
+            val result = mapOf(
+                "type" to "HR",
+                "hr" to MS_GSP_HR_ID,
+            )
+
+            Log.i(TAG, "ER Data Parsed: ${result}")
+            return result
+        }catch (e: Exception) {
+            Log.e(TAG, "Error parsing HR data: ${e.message}")
+            return null
+        }
+
     }
 
     /**
