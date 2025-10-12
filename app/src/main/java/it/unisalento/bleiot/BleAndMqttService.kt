@@ -413,12 +413,12 @@ class BleAndMqttService : Service() {
                                     //val ecgCommand = byteArrayOf(1, 100) + "/Meas/ECG/${rate}".toByteArray(Charsets.UTF_8)
                                     //Log.i(TAG, "Found Movesense GATT Sensor Data Write Char, queuing ECG measurement command: ${ecgCommand.contentToString()}")
                                     // Queue IMU measurement command: bytearray([1, 99])+bytearray("/Meas/IMU/200", "utf-8")
-                                    val ecgCommand = byteArrayOf(1, 99) + "/Meas/IMU9/${imuRate}".toByteArray(Charsets.UTF_8)
-                                    Log.i(TAG, "Found Movesense GATT Sensor Data Write Char, queuing IMU9 measurement command: ${ecgCommand.contentToString()}")
+                                    val imuCommand = byteArrayOf(1, 99) + "/Meas/IMU9/${imuRate}".toByteArray(Charsets.UTF_8)
+                                    Log.i(TAG, "Found Movesense GATT Sensor Data Write Char, queuing IMU9 measurement command: ${imuCommand.contentToString()}")
 
                                     // Add a small delay to ensure all services are fully discovered before writing
                                     android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                                        queueCharacteristicWrite(gatt.device.address, characteristic, ecgCommand)
+                                        queueCharacteristicWrite(gatt.device.address, characteristic, imuCommand)
                                     }, 10000) // 1 second delay
                                 } else {
                                     Log.w(TAG, "Movesense Whiteboard Write Char does not support write operations")
@@ -440,6 +440,7 @@ class BleAndMqttService : Service() {
                                 }
                             }
                         } else {
+                            Log.i(TAG, "characteristic ${characteristic.uuid.toString()} not found")
                             // Fallback: check against hardcoded characteristic for backward compatibility
                             if (service.uuid == SERVICE_UUID && characteristic.uuid == CHARACTERISTIC_UUID) {
                                 Log.i(TAG, "Found fallback characteristic")

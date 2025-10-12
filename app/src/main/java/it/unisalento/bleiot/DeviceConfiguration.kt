@@ -82,10 +82,10 @@ class DeviceConfigurationManager private constructor(context: Context) {
         //Log.i(TAG, "See if deviceName: ${deviceName} ${deviceConfig}")
 
         for (service in deviceConfig.services) {
-            // Log.i(TAG, "See if match serviceUuid: ${serviceUuid} ${service.uuid}")
+            //Log.d(TAG, "See if match serviceUuid: ${serviceUuid} ${service.uuid}")
             if (service.uuid.equals(serviceUuid, ignoreCase = true)) {
                 for (characteristic in service.characteristics) {
-                    // Log.i(TAG, "See if match characteristic: ${characteristic}")
+                    //Log.d(TAG, "See if match characteristic: ${characteristicUuid} --> ${characteristic}")
                     if (characteristic.uuid.equals(characteristicUuid, ignoreCase = true)) {
                         Log.d(TAG, "Pair Found:  ${deviceName} ${serviceUuid} ${characteristic}")
                         return Pair(service, characteristic)
@@ -166,6 +166,7 @@ class DeviceConfigurationManager private constructor(context: Context) {
                                     put("mqttTopic", characteristic.mqttTopic)
                                     characteristic.customParser?.let { put("customParser", it) }
                                 }
+                                Log.i(TAG,"${charJson}");
                                 characteristicsArray.put(charJson)
                             }
                             put("characteristics", characteristicsArray)
