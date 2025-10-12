@@ -658,19 +658,6 @@ class BleAndMqttService : Service() {
         }
     }
 
-    // private fun parseSTBattery(data: ByteArray): Double {
-    //     val battValue = data.sliceArray(6 until data.size).foldIndexed(0) { index, acc, byte ->
-    //         acc or ((byte.toInt() and 0xFF) shl (8 * index))
-    //     }
-    //     return battValue.toDouble()
-    // }
-
-    // private fun parseTemperatureDeta(data: ByteArray): Double {
-    //     val tempValue = data.sliceArray(6 until data.size).foldIndexed(0) { index, acc, byte ->
-    //         acc or ((byte.toInt() and 0xFF) shl (8 * index))
-    //     }
-    //     return (tempValue/10).toDouble()
-    // }
 
     // Update status helpers
     private fun updateStatus(status: String) {
