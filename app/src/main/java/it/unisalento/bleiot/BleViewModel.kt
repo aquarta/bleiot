@@ -35,27 +35,7 @@ class BleViewModel : ViewModel() {
     private val handler = Handler(Looper.getMainLooper())
     private val scannedDevices = mutableListOf<BluetoothDevice>()
 
-    // Service and Characteristic UUIDs
-    private val SERVICE_UUID = UUID.fromString("00000000-0001-11e1-9ab4-0002a5d5c51b") // MSSensorDemo Service
-    private val BLUENRG_MS_ENV_CHARACTERISTIC_UUID = UUID.fromString("00140000-0001-11e1-ac36-0002a5d5c51b") // MSSensorDemo Characteristic
-    private val BLUENRG_MS_ACC_CHARACTERISTIC_UUID = UUID.fromString("00c00000-0001-11e1-ac36-0002a5d5c51b")
-    private val CCCD_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
-    private val BLUENRG_MS_SERVICE_UUID = UUID.fromString("00000000-0001-11e1-9ab4-0002a5d5c51b") // MSSensorDemo Service
-    private val HEAR_RATE_SERVICE_UUID = UUID.fromString("0000180D-0000-1000-8000-00805F9B34FB") // Heart Rate Service
-    private val SERVICE_UUIDS = listOf(
-        HEAR_RATE_SERVICE_UUID,
-        BLUENRG_MS_SERVICE_UUID, // MSSensorDemo Service
-    )
 
-    private val HEART_RATE_CHARACTERISTIC_UUID = UUID.fromString("00002A37-0000-1000-8000-00805F9B34FB")
-    private val BATTERY_CHARACTERISTIC_UUID = UUID.fromString("0000180F-0000-1000-8000-00805F9B34FB")
-
-    private val CHAR_UUIDS = listOf(
-        HEART_RATE_CHARACTERISTIC_UUID,
-        //BLUENRG_MS_ENV_CHARACTERISTIC_UUID,
-        BLUENRG_MS_ACC_CHARACTERISTIC_UUID,
-        BATTERY_CHARACTERISTIC_UUID,
-    )
 
     // MQTT Client properties
     private var mqttClient: MqttClient? = null
