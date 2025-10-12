@@ -184,10 +184,6 @@ object BleDataParsers {
                         // ECG data (reference 100) fits in one packet
                         return parseECGData(data,rate)
                     }
-//                    else if (reference == 99) {
-//                        // ECG data (reference 100) fits in one packet
-//                        return parseIMU9Data(data,imuRate)
-//                    }
                     else {
                         // for IMU9 data does not fit in 1 packet so we waiting for PACKET_TYPE_DATA_PART2
                         // Store first part of the incoming data for multi-part packets
