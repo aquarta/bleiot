@@ -416,7 +416,7 @@ class BleAndMqttService : Service() {
                                 if (canWrite || canWriteNoResponse) {
 
                                     val commands = listOf(
-                                                    byteArrayOf(MS_GSP_COMMAND_ID, MS_GSP_ECG_ID) + "/Meas/ECG/${rate}".toByteArray(Charsets.UTF_8),
+                                                    //  byteArrayOf(MS_GSP_COMMAND_ID, MS_GSP_ECG_ID) + "/Meas/ECG/${rate}".toByteArray(Charsets.UTF_8),
                                                     byteArrayOf(MS_GSP_COMMAND_ID, MS_GSP_IMU_ID) + "/Meas/IMU9/${imuRate}".toByteArray(Charsets.UTF_8),
                                                     byteArrayOf(MS_GSP_COMMAND_ID, MS_GSP_HR_ID) + "/Meas/HR".toByteArray(Charsets.UTF_8),
                                     )
