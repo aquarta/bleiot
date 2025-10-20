@@ -140,7 +140,7 @@ object BleDataParsers {
             val status = data[8].toInt() and 0xFF
 
             val result = mapOf(
-                "timestamp" to timestamp,
+                "sample_timestamp" to timestamp,
                 "batteryLevel" to batteryLevel,
                 "voltage" to voltage,
                 "current" to current,
@@ -335,7 +335,7 @@ object BleDataParsers {
                 val magZ = getFloat32LE(data, offset + 2 * skip + 8)
 
                 imuSamples.add(mapOf(
-                    "timestamp" to rowTimestamp,
+                    "sample_timestamp" to rowTimestamp,
                     "acc_x" to accX,
                     "acc_y" to accY,
                     "acc_z" to accZ,
