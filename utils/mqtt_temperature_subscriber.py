@@ -12,6 +12,7 @@ import datetime
 MQTT_BROKER = "broker.hivemq.com"  # Change to your MQTT broker address
 MQTT_PORT = 1883
 MQTT_TOPIC = "ble/+"
+MQTT_TOPIC2 = "ble/movesense"
 MQTT_USERNAME = None  # Set if authentication is required
 MQTT_PASSWORD = None  # Set if authentication is required
 
@@ -19,8 +20,10 @@ def on_connect(client, userdata, flags, rc):
     """Callback for when the client receives a CONNACK response from the server."""
     if rc == 0:
         print(f"Connected to MQTT broker at {MQTT_BROKER}:{MQTT_PORT}")
-        client.subscribe(MQTT_TOPIC)
-        print(f"Subscribed to topic: {MQTT_TOPIC}")
+        # client.subscribe(MQTT_TOPIC)
+        # print(f"Subscribed to topic: {MQTT_TOPIC}")
+        client.subscribe(MQTT_TOPIC2)
+        print(f"Subscribed to topic: {MQTT_TOPIC2}")
     else:
         print(f"Failed to connect, return code {rc}")
 
