@@ -50,7 +50,12 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
-
+    // Needed by Movesense lib
+    implementation("com.polidea.rxandroidble2:rxandroidble:1.10.2")
+    implementation("io.reactivex.rxjava2:rxandroid:2.1.1")
+    implementation("io.reactivex.rxjava2:rxjava:2.2.8")
+    // Movesense .aar lib
+    implementation(dependencyNotation = files("../mds_lib/mdslib-3.27.0-release.aar"))
 
 
     // Add Paho MQTT Client

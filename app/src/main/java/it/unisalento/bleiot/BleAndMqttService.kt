@@ -21,6 +21,12 @@ import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_HR_ID
 import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_TEMP_ID
 import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_IMU_ID
 import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_ECG_ID
+import com.movesense.mds.Mds;
+import com.movesense.mds.internal.connectivity.MovesenseConnectedDevices;
+import com.movesense.mds.internal.connectivity.MovesenseDevice;
+import com.movesense.mds.MdsConnectionListener
+import com.movesense.mds.MdsException
+
 
 private const val CCCD = "00002902-0000-1000-8000-00805f9b34fb"
 
@@ -282,6 +288,26 @@ class BleAndMqttService : Service() {
                 isWritingCharacteristics[it.address] = false
 
                 updateStatus("Connecting to ${it.name ?: "Unknown Device"}...")
+                if(it.name.contains("Movesense")) {
+                    Log.i(TAG, "use Mds.builder")
+                    Mds.builder().build(this).connect(it.address,  object : MdsConnectionListener {
+                        override fun onConnect(s: String) {
+                            Log.d(TAG, "onConnect :$s")
+                        }
+
+                        override fun onConnectionComplete(macAddress: String, serial: String) {
+                            Log.d(TAG, "Connected :$macAddress --> $serial")
+                        }
+
+                        override fun onError(e: MdsException) {
+                            Log.e(TAG, "onError:$e")
+                        }
+
+                        override fun onDisconnect(bleAddress: String) {
+                            Log.d(TAG, "Movesense onDisconnect: $bleAddress")
+                        }
+                    });
+                }
                 val gatt = it.connectGatt(this, false, gattCallback)
                 gattConnections[it.address] = gatt
             }
