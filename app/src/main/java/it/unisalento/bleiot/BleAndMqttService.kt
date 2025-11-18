@@ -9,23 +9,21 @@ import android.content.pm.PackageManager
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
+import android.os.Handler
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
+import com.movesense.mds.Mds
+import com.movesense.mds.MdsConnectionListener
+import com.movesense.mds.MdsException
+import com.movesense.mds.MdsResponseListener
+import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_COMMAND_ID
+import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_HR_ID
+import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_IMU_ID
 import org.eclipse.paho.client.mqttv3.*
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 import org.json.JSONObject
 import java.util.*
-import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_COMMAND_ID
-import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_HR_ID
-import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_TEMP_ID
-import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_IMU_ID
-import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_ECG_ID
-import com.movesense.mds.Mds;
-import com.movesense.mds.internal.connectivity.MovesenseConnectedDevices;
-import com.movesense.mds.internal.connectivity.MovesenseDevice;
-import com.movesense.mds.MdsConnectionListener
-import com.movesense.mds.MdsException
 
 
 private const val CCCD = "00002902-0000-1000-8000-00805f9b34fb"
@@ -58,9 +56,6 @@ class BleAndMqttService : Service() {
     private val characteristicWriteQueues = mutableMapOf<String, MutableList<CharacteristicWrite>>()
     private val isWritingCharacteristics = mutableMapOf<String, Boolean>()
 
-    // Service UUID and Characteristic UUID
-    private val SERVICE_UUID = UUID.fromString("00000000-0001-11e1-9ab4-0002a5d5c51b")
-    private val CHARACTERISTIC_UUID = UUID.fromString("00140000-0001-11e1-ac36-0002a5d5c51b")
 
     // Binder for activity communication
     private val binder = LocalBinder()
@@ -408,8 +403,17 @@ class BleAndMqttService : Service() {
                 ) {
                     return
                 }
-
                 val deviceName = gatt.device.name
+
+                if (deviceName.contains("Movesense")) {
+                    Handler(android.os.Looper.getMainLooper()).postDelayed({
+                            movesenseGetInfo(gatt)
+                        }, 5000L) // 5s for first, 6s for second, etc.
+
+                    return
+                }
+
+
                 var enabledCharacteristics = 0
 
                 // Iterate through all services
@@ -451,11 +455,11 @@ class BleAndMqttService : Service() {
                                     commands.forEachIndexed { index, command ->
                                         Log.i(TAG, "Found Movesense GATT Sensor Data Write Char, queuing measurement command: ${command.contentToString()}")
                                         // Add a small delay to ensure all services are fully discovered before writing
-                                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                        Handler(android.os.Looper.getMainLooper()).postDelayed({
                                             queueCharacteristicWrite(gatt.device.address, characteristic, command)
                                         }, 5000L + (index * 1000L)) // 5s for first, 6s for second, etc.
                                     }
-                                    
+
                                 } else {
                                     Log.w(TAG, "Movesense Whiteboard Write Char does not support write operations")
                                 }
@@ -477,23 +481,6 @@ class BleAndMqttService : Service() {
                             }
                         } else {
                             Log.i(TAG, "characteristic ${characteristic.uuid.toString()} not found")
-                            // Fallback: check against hardcoded characteristic for backward compatibility
-                            if (service.uuid == SERVICE_UUID && characteristic.uuid == CHARACTERISTIC_UUID) {
-                                Log.i(TAG, "Found fallback characteristic")
-
-                                if (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0) {
-                                    gatt.setCharacteristicNotification(characteristic, true)
-
-                                    val desc_uuid = UUID.fromString(CCCD)
-                                    val descriptor = characteristic.getDescriptor(desc_uuid)
-                                    if (descriptor != null) {
-                                        descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
-                                        queueDescriptorWrite(gatt.device.address, descriptor)
-                                        enabledCharacteristics++
-                                        Log.i(TAG, "Queued notifications for fallback characteristic")
-                                    }
-                                }
-                            }
                         }
                     }
                 }
@@ -576,6 +563,56 @@ class BleAndMqttService : Service() {
                 handleCharacteristicChanged(gatt, characteristic, value)
             }
         }
+    }
+
+    private fun movesenseGetInfo(gatt: BluetoothGatt) {
+        Mds.builder().build(this@BleAndMqttService)
+            .get("suunto://MDS/whiteboard/info", null, object : MdsResponseListener {
+
+                override fun onSuccess(data: String) {
+                    Log.d(TAG, "ID: " + gatt.device.name + " OUTPUT: " + data);
+                }
+
+                override fun onError(error: MdsException) {
+                    Log.e(TAG, "onError()", error);
+                }
+
+            })
+        Mds.builder().build(this@BleAndMqttService)
+            .get("suunto://223430000418/comm/ble/config", null, object : MdsResponseListener {
+                override fun onSuccess(data: String) {
+                    Log.d(
+                        TAG,
+                        "ID: " + gatt.device.name + " [GET]/Comm/Ble/Config " + " OUTPUT: " + data
+                    );
+                }
+
+                override fun onError(error: MdsException) {
+                    Log.e(
+                        TAG,
+                        " + gatt.device.name + " + "onError() [GET]/Comm/Ble/Config ",
+                        error
+                    );
+                }
+            })
+
+        Mds.builder().build(this@BleAndMqttService)
+            .get("suunto://223430000418/component/leds", null, object : MdsResponseListener {
+                override fun onSuccess(data: String) {
+                    Log.d(
+                        TAG,
+                        "ID: " + gatt.device.name + " [GET]/component/leds" + " OUTPUT: " + data
+                    );
+                }
+
+                override fun onError(error: MdsException) {
+                    Log.e(
+                        TAG,
+                        " + gatt.device.name + " + "onError() [GET]/component/leds ",
+                        error
+                    );
+                }
+            })
     }
 
     private fun handleCharacteristicChanged(
