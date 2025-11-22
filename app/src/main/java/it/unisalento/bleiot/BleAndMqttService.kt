@@ -418,9 +418,8 @@ class BleAndMqttService : Service() {
                             movesenseGetInfo(gatt)
                         }, 5000L) // 5s for first, 6s for second, etc.
 
-                    return
+                    //return
                 }
-
 
                 var enabledCharacteristics = 0
 
@@ -447,7 +446,7 @@ class BleAndMqttService : Service() {
                             Log.i(TAG, "Found configured characteristic: ${characteristicInfo.name}")
 
                             // Check if this is the Movesense Whiteboard Write Char
-                            if (characteristicInfo.name == "Movesense Whiteboard Write Char") {
+                            if (characteristicInfo.name == "Movesense GSD Write Char") {
                                 val rate = 200;
                                 val imuRate = 104;
                                 // Check characteristic properties before writing

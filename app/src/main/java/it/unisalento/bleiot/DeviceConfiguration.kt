@@ -4,7 +4,6 @@ import android.content.Context
 import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
-import java.util.*
 
 data class DeviceConfiguration(
     val devices: Map<String, DeviceInfo> = emptyMap(),
@@ -87,7 +86,7 @@ class DeviceConfigurationManager private constructor(context: Context) {
     fun findWhiteboardSpecs(deviceName: String?)  {
         val deviceConfig = findDeviceConfig(deviceName) ?: return
         for (whiteBoardMeasure in deviceConfig.whiteboardMeasures) {
-            Log.d(TAG, "Pair Found:  ${deviceName} ${whiteBoardMeasure}")
+            Log.d(TAG, "whiteBoardMeasure Pair Found:  ${deviceName} ${whiteBoardMeasure}")
         }
     }
 
@@ -189,6 +188,28 @@ class DeviceConfigurationManager private constructor(context: Context) {
                     }
                     put("services", servicesArray)
                 }
+                // Add this block to serialize whiteboard measures
+                if (device.whiteboardMeasures.isNotEmpty()) {
+                    val wbJson = JSONObject()
+                    val measuresArray = JSONArray()
+                    device.whiteboardMeasures.forEach { measure ->
+                        val measureJson = JSONObject()
+                        measureJson.put("name", measure.name)
+
+                        val methodsArray = JSONArray()
+                        measure.methods.forEach { method ->
+                            methodsArray.put(method)
+                        }
+                        measureJson.put("methods", methodsArray)
+
+                        measuresArray.put(measureJson)
+                    }
+                    wbJson.put("measures", measuresArray)
+
+                    // IMPORTANT: The key here must match what deserialize expects ("movesense_whiteboard")
+                    deviceJson.put("movesense_whiteboard", wbJson)
+                }
+
                 devicesJson.put(key, deviceJson)
             }
             json.put("devices", devicesJson)
@@ -257,25 +278,27 @@ class DeviceConfigurationManager private constructor(context: Context) {
                 // used by Movesense
                 val whiteboardMeasures = mutableListOf<WhiteboardMeasure>()
                 val movesenseWhiteboard = deviceJson.optJSONObject("movesense_whiteboard")
-                if (movesenseWhiteboard != null){
+                if (movesenseWhiteboard != null) {
                     val movesenseWhiteboardMeasuredArray = movesenseWhiteboard.optJSONArray("measures")
                     movesenseWhiteboardMeasuredArray?.let { array ->
                         for (i in 0 until array.length()) {
                             val measure = array.getJSONObject(i)
                             val methodsList = mutableListOf<String>()
-                            measure.optJSONArray("methods").let{ it ->
-                                methodsList.add(it!!.toString())
+
+                            val methodsJsonArray = measure.optJSONArray("methods")
+                            if (methodsJsonArray != null) {
+                                for (k in 0 until methodsJsonArray.length()) {
+                                    methodsList.add(methodsJsonArray.getString(k))
+                                }
                             }
                             whiteboardMeasures.add(
                                 WhiteboardMeasure(
                                     name = measure.getString("name"),
                                     methods = methodsList
-                                    )
+                                )
                             )
-
                         }
                     }
-
                 }
 
 

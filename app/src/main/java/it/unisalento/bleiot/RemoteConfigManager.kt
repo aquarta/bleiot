@@ -89,24 +89,50 @@ class RemoteConfigManager private constructor(private val context: Context) {
             null
         }
     }
-    
+
     private fun parseDeviceInfo(deviceMap: Map<String, Any>): DeviceInfo? {
         return try {
             val name = deviceMap["name"] as? String ?: return null
             val shortName = deviceMap["shortName"] as? String ?: name
             val servicesList = deviceMap["services"] as? List<Map<String, Any>> ?: emptyList()
-            
+
+
+            // 1. Get movesense_whiteboard as a MAP, not a List
+            val movesenseWhiteboardMap = deviceMap["movesense_whiteboard"] as? Map<String, Any>
+
+            // 2. Extract the "measures" list from that map
+            val measuresList = movesenseWhiteboardMap?.get("measures") as? List<Map<String, Any>> ?: emptyList()
+
+            // 3. Map the measures list to your objects
+            val movesenseWhiteboard: List<WhiteboardMeasure> = measuresList.mapNotNull { measureMap ->
+                parseWhiteBoardMeasureInfo(measureMap)
+            }
+
             val services = servicesList.mapNotNull { serviceMap ->
                 parseServiceInfo(serviceMap)
             }
-            
-            DeviceInfo(name, shortName, services)
+
+            DeviceInfo(name, shortName, services, movesenseWhiteboard)
         } catch (e: Exception) {
             Log.e(TAG, "Error parsing device info", e)
             null
         }
     }
-    
+
+
+
+    private fun parseWhiteBoardMeasureInfo(measureMap: Map<String, Any>): WhiteboardMeasure? {
+        return try {
+            val name = measureMap["name"] as? String ?: return null
+            val methods = measureMap["methods"] as? List<String> ?: emptyList()
+
+            WhiteboardMeasure(name, methods)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error parsing service info", e)
+            null
+        }
+
+    }
     private fun parseServiceInfo(serviceMap: Map<String, Any>): ServiceInfo? {
         return try {
             val uuid = serviceMap["uuid"] as? String ?: return null
