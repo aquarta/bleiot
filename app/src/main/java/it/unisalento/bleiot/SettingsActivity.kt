@@ -9,7 +9,9 @@ import android.os.IBinder
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
@@ -134,7 +136,8 @@ fun SettingsScreen(modifier: Modifier = Modifier, onMqttSettingsSaved: () -> Uni
     var showConfigMessage by remember { mutableStateOf("") }
     var isDownloadingConfig by remember { mutableStateOf(false) }
     var lastUpdateTime by remember { mutableStateOf(remoteConfigManager.getLastUpdateTime()) }
-
+    // 1. Create the scroll state
+    val scrollState = rememberScrollState()
     Surface(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
@@ -142,7 +145,7 @@ fun SettingsScreen(modifier: Modifier = Modifier, onMqttSettingsSaved: () -> Uni
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
+                .padding(16.dp).verticalScroll(scrollState),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
