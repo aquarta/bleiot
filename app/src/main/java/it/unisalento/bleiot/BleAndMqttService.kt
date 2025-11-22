@@ -67,8 +67,10 @@ class BleAndMqttService : Service() {
     companion object {
         // ... existing constants
         const val ACTION_CHARACTERISTIC_FOUND = "it.unisalento.bleiot.ACTION_CHARACTERISTIC_FOUND"
+        const val ACTION_WHITEBOARD_FOUND = "it.unisalento.bleiot.ACTION_WHITEBOARD_FOUND"
         const val EXTRA_DEVICE_ADDRESS = "it.unisalento.bleiot.EXTRA_DEVICE_ADDRESS"
         const val EXTRA_CHARACTERISTIC_UUID = "it.unisalento.bleiot.EXTRA_CHARACTERISTIC_UUID"
+        const val EXTRA_WHITEBOARD = "it.unisalento.bleiot.EXTRA_WHITEBOARD"
     }
 
 
@@ -413,7 +415,7 @@ class BleAndMqttService : Service() {
                 }
                 val deviceName = gatt.device.name
 
-                if (deviceName.contains("Movesense")) {
+                if (false && deviceName.contains("Movesense")) {
                     Handler(android.os.Looper.getMainLooper()).postDelayed({
                             movesenseGetInfo(gatt)
                         }, 5000L) // 5s for first, 6s for second, etc.
@@ -425,11 +427,11 @@ class BleAndMqttService : Service() {
 
                 // Iterate through all services
                 for (service in gatt.services) {
-                    Log.i(TAG, "Checking service: ${service.uuid}")
+                    //Log.i(TAG, "Checking service: ${service.uuid}")
 
                     // Iterate through all characteristics in each service
                     for (characteristic in service.characteristics) {
-                        Log.i(TAG, "Checking characteristic: ${characteristic.uuid}")
+                        //Log.i(TAG, "Checking characteristic: ${characteristic.uuid}")
 
                         // Check if this characteristic is known in our configuration
                         val configPair = deviceConfigManager.findServiceAndCharacteristic(
@@ -446,7 +448,7 @@ class BleAndMqttService : Service() {
                             Log.i(TAG, "Found configured characteristic: ${characteristicInfo.name}")
 
                             // Check if this is the Movesense Whiteboard Write Char
-                            if (characteristicInfo.name == "Movesense GSD Write Char") {
+                            if (false && characteristicInfo.name == "Movesense GSD Write Char") {
                                 val rate = 200;
                                 val imuRate = 104;
                                 // Check characteristic properties before writing
@@ -496,7 +498,24 @@ class BleAndMqttService : Service() {
                         }
                     }
                 }
-                deviceConfigManager.findWhiteboardSpecs(deviceName)
+                val whiteboards = deviceConfigManager.findWhiteboardSpecs(deviceName)
+
+                if (whiteboards!=null && whiteboards.isNotEmpty()) {
+                    Log.i(TAG, "Found whiteboards: $$deviceName $whiteboards ")
+
+                    for (whiteboard in whiteboards){
+                        val intent = Intent(ACTION_WHITEBOARD_FOUND)
+                        intent.apply {
+                            putExtra(EXTRA_DEVICE_ADDRESS, gatt.device.address)
+                            putExtra(EXTRA_WHITEBOARD, whiteboard.name)
+                        }
+                        sendBroadcast(intent)
+                    }
+
+                }
+                else{
+                    Log.i(TAG, "No whiteboards found $deviceName")
+                }
 
 
                 if (enabledCharacteristics > 0) {
@@ -595,9 +614,23 @@ class BleAndMqttService : Service() {
         Mds.builder().build(this@BleAndMqttService)
             .get("suunto://223430000418/comm/ble/config", null, object : MdsResponseListener {
                 override fun onSuccess(data: String) {
+                    if (ActivityCompat.checkSelfPermission(
+                            this@BleAndMqttService,
+                            Manifest.permission.BLUETOOTH_CONNECT
+                        ) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        // TODO: Consider calling
+                        //    ActivityCompat#requestPermissions
+                        // here to request the missing permissions, and then overriding
+                        //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+                        //                                          int[] grantResults)
+                        // to handle the case where the user grants the permission. See the documentation
+                        // for ActivityCompat#requestPermissions for more details.
+                        return
+                    }
                     Log.d(
                         TAG,
-                        "ID: " + gatt.device.name + " [GET]/Comm/Ble/Config " + " OUTPUT: " + data
+                        "ID: " + gatt.device.name + " [GET]/223430000418/comm/ble/config " + " OUTPUT: " + data
                     );
                 }
 
