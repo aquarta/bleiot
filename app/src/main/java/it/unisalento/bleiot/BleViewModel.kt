@@ -1,17 +1,21 @@
 package it.unisalento.bleiot
 
 import android.Manifest
+import android.app.Application
 import android.bluetooth.*
 import android.bluetooth.le.BluetoothLeScanner
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import androidx.compose.animation.core.copy
 import androidx.core.app.ActivityCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -24,6 +28,7 @@ import org.eclipse.paho.client.mqttv3.*
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 import java.util.*
 
+
 class BleViewModel : ViewModel() {
     private val TAG = "BleViewModel"
     private val SCAN_PERIOD: Long = 10000 // Scan for 10 seconds
@@ -33,7 +38,7 @@ class BleViewModel : ViewModel() {
     private var bluetoothLeScanner: BluetoothLeScanner? = null
     private var scanning = false
     private val handler = Handler(Looper.getMainLooper())
-    private val scannedDevices = mutableListOf<BluetoothDevice>()
+    private val scannedDevices = mutableListOf<BleDeviceInfoTrans>()
 
 
 
@@ -61,6 +66,15 @@ class BleViewModel : ViewModel() {
         if (bluetoothAdapter == null) {
             updateStatus("Bluetooth not supported")
         }
+        // --- ADD THIS: Register the receiver here ---
+        val filter = IntentFilter().apply {
+            addAction(BleAndMqttService.ACTION_CHARACTERISTIC_FOUND)
+            //putExtra(BleAndMqttService.EXTRA_DEVICE_ADDRESS, "address_placeholder") // Just to access constants safely if needed
+        }
+        // Use the appContext we just captured
+        //appContext?.registerReceiver(characteristicReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        appContext?.registerReceiver(characteristicReceiver, filter, Context.RECEIVER_EXPORTED)
+        // Note: Context.RECEIVER_NOT_EXPORTED is recommended for Android 14+
     }
 
     fun setService(service: BleAndMqttService) {
@@ -177,13 +191,18 @@ class BleViewModel : ViewModel() {
                 }
 
                 val device = result.device
+                val scannedDeviceTrans = BleDeviceInfoTrans(
+                    name = device.name ?: "Unknown Device",
+                    address = device.address,
+                    device = device
+                )
                 val deviceName = device.name ?: "Unknown Device"
 
                 Log.i(TAG, "Found device: $deviceName ${device.address}")
 
                 // Add device to list if it's not already there
                 if (device.name != null && !scannedDevices.any { it.address == device.address }) {
-                    scannedDevices.add(device)
+                    scannedDevices.add(scannedDeviceTrans)
                     updateDevicesList()
                 }
             }
@@ -249,93 +268,6 @@ class BleViewModel : ViewModel() {
         }
     }
 
-    fun disconnectAllDevices() {
-        appContext?.let { context ->
-            // Send disconnect command without device address to disconnect all
-            Log.e(TAG, "Start disconnecting all devices")
-            if (bleAndMqttService != null) {
-                val serviceIntent = Intent(context, BleAndMqttService::class.java).apply {
-                    action = "DISCONNECT_BLE"
-                    // No deviceAddress = disconnect all
-                }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    context.startForegroundService(serviceIntent)
-                } else {
-                    context.startService(serviceIntent)
-                }
-
-                updateStatus("Disconnecting from all devices")
-            } else {
-                updateStatus("Service not bound, cannot disconnect")
-            }
-        }
-    }
-
-    // Example parser for Temperature data (adjust according to your device)
-    private fun parseTemperatureDeta(data: ByteArray): Double {
-        val tempValue = data.sliceArray(6 until data.size).foldIndexed(0) { index, acc, byte ->
-            acc or ((byte.toInt() and 0xFF) shl (8 * index))
-        }
-
-        val temperature = (tempValue/10).toDouble()
-        // Publish temperature to MQTT
-        publishToMqtt(MQTT_TOPIC, temperature.toString())
-
-        return temperature
-    }
-
-    private fun parseMSAccDeta(data: ByteArray): Int {
-        val accValue = data.sliceArray(6 until data.size).foldIndexed(0) { index, acc, byte ->
-            acc or ((byte.toInt() and 0xFF) shl (8 * index))
-        }
-
-        // Publish accelerometer to MQTT
-        publishToMqtt(MQTT_TOPIC, accValue.toString())
-
-        return accValue
-    }
-
-    private fun setupMqttClient() {
-        try {
-            // Create a new MqttClient instance
-            mqttClient = MqttClient(
-                MQTT_SERVER_URI,
-                MQTT_CLIENT_ID,
-                MemoryPersistence()
-            )
-
-            // Set up connection options
-            val options = MqttConnectOptions()
-            options.isAutomaticReconnect = true
-            options.isCleanSession = true
-
-            // Connect to the broker
-            mqttClient?.connect(options)
-            updateStatus("Connected to MQTT broker")
-
-        } catch (e: MqttException) {
-            Log.e(TAG, "Error setting up MQTT client: ${e.message}")
-            updateStatus("MQTT connection failed: ${e.message}")
-        }
-    }
-
-    private fun publishToMqtt(topic: String, message: String) {
-        viewModelScope.launch {
-            try {
-                if (mqttClient?.isConnected == true) {
-                    val mqttMessage = MqttMessage(message.toByteArray())
-                    mqttMessage.qos = 1
-                    mqttClient?.publish(topic, mqttMessage)
-                    Log.i(TAG, "Published to MQTT: $message")
-                } else {
-                    Log.w(TAG, "MQTT client not connected, attempting to reconnect")
-                    setupMqttClient()
-                }
-            } catch (e: MqttException) {
-                Log.e(TAG, "Error publishing to MQTT: ${e.message}")
-            }
-        }
-    }
 
     private fun updateConnectedDevices() {
         val connectedAddresses = bleAndMqttService?.getConnectedDeviceAddresses() ?: emptySet()
@@ -367,7 +299,9 @@ class BleViewModel : ViewModel() {
     private fun updateDevicesList() {
         appContext?.let { context ->
             _uiState.update { currentState ->
+
                 currentState.copy(
+
                     devicesList = scannedDevices.map { device ->
                         // Check for permissions
                         if (ActivityCompat.checkSelfPermission(
@@ -378,13 +312,13 @@ class BleViewModel : ViewModel() {
                             BleDeviceInfo(
                                 name = device.name ?: "Unknown Device",
                                 address = device.address,
-                                device = device
+                                deviceT = device
                             )
                         } else {
                             BleDeviceInfo(
                                 name = "Unknown Device",
                                 address = device.address,
-                                device = device
+                                deviceT = device
                             )
                         }
                     }
@@ -398,8 +332,61 @@ class BleViewModel : ViewModel() {
         stopScan()
         mqttClient?.disconnect()
         mqttClient?.close()
+
+        // Safe unregister
+        try {
+            appContext?.unregisterReceiver(characteristicReceiver)
+        } catch (e: Exception) {
+            Log.e(TAG, "Receiver was not registered")
+        }
     }
+
+
+    // Add the broadcast receiver
+    private val characteristicReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == BleAndMqttService.ACTION_CHARACTERISTIC_FOUND) {
+            val address = intent.getStringExtra(BleAndMqttService.EXTRA_DEVICE_ADDRESS)
+            val uuid = intent.getStringExtra(BleAndMqttService.EXTRA_CHARACTERISTIC_UUID)
+
+            if (address != null && uuid != null) {
+                updateDeviceUuid(address, uuid)
+            }
+        }
+        }
+    }
+
+    private fun updateDeviceUuid(address: String, uuid: String) {
+        // Find the index of the device in your mutable list
+        val index = scannedDevices.indexOfFirst { it.address == address }
+
+        if (index != -1) {
+            val originalDevice: BleDeviceInfoTrans = scannedDevices[index]
+
+            // 1. Create the new list of services safely
+            // Check if UUID is already there to avoid duplicates
+            if (originalDevice.bleServices.contains(uuid)) return
+
+            val updatedServices = originalDevice.bleServices + uuid
+
+            // 2. Create a COPY of the Trans object with the new list
+            val updatedDeviceTrans = originalDevice.copy(bleServices = updatedServices)
+
+            // 3. REPLACE the object in the source of truth list
+            scannedDevices[index] = updatedDeviceTrans
+
+            // 4. Trigger the UI update
+            // We don't need to pass arguments anymore because scannedDevices is now updated
+            updateDevicesList()
+        }
+    }
+
 }
+
+
+
+
+
 
 // Data class to hold UI state
 data class BleUiState(
@@ -414,5 +401,13 @@ data class BleUiState(
 data class BleDeviceInfo(
     val name: String,
     val address: String,
-    val device: BluetoothDevice
+    val deviceT: BleDeviceInfoTrans
+)
+
+data class BleDeviceInfoTrans(
+    val name: String,
+    val address: String,
+    val device: BluetoothDevice,
+    var bleServices: List<String> = listOf<String>(),
+    var whiteboardServices: List<String> = listOf<String>()
 )

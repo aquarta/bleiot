@@ -14,13 +14,20 @@ data class DeviceConfiguration(
 data class DeviceInfo(
     val name: String,
     val shortName: String,
-    val services: List<ServiceInfo> = emptyList()
+    val services: List<ServiceInfo> = emptyList(),
+    val whiteboardMeasures: List<WhiteboardMeasure> = emptyList(),
 )
 
 data class ServiceInfo(
     val uuid: String,
     val name: String,
     val characteristics: List<CharacteristicInfo> = emptyList()
+)
+
+data class WhiteboardMeasure(
+
+    val name: String,
+    val methods: List<String> = emptyList(),
 )
 
 data class CharacteristicInfo(
@@ -76,7 +83,14 @@ class DeviceConfigurationManager private constructor(context: Context) {
 
         return null
     }
-    
+
+    fun findWhiteboardSpecs(deviceName: String?)  {
+        val deviceConfig = findDeviceConfig(deviceName) ?: return
+        for (whiteBoardMeasure in deviceConfig.whiteboardMeasures) {
+            Log.d(TAG, "Pair Found:  ${deviceName} ${whiteBoardMeasure}")
+        }
+    }
+
     fun findServiceAndCharacteristic(deviceName: String?, serviceUuid: String, characteristicUuid: String): Pair<ServiceInfo, CharacteristicInfo>? {
         val deviceConfig = findDeviceConfig(deviceName) ?: return null
         //Log.i(TAG, "See if deviceName: ${deviceName} ${deviceConfig}")
@@ -240,11 +254,37 @@ class DeviceConfigurationManager private constructor(context: Context) {
                         )
                     }
                 }
+                // used by Movesense
+                val whiteboardMeasures = mutableListOf<WhiteboardMeasure>()
+                val movesenseWhiteboard = deviceJson.optJSONObject("movesense_whiteboard")
+                if (movesenseWhiteboard != null){
+                    val movesenseWhiteboardMeasuredArray = movesenseWhiteboard.optJSONArray("measures")
+                    movesenseWhiteboardMeasuredArray?.let { array ->
+                        for (i in 0 until array.length()) {
+                            val measure = array.getJSONObject(i)
+                            val methodsList = mutableListOf<String>()
+                            measure.optJSONArray("methods").let{ it ->
+                                methodsList.add(it!!.toString())
+                            }
+                            whiteboardMeasures.add(
+                                WhiteboardMeasure(
+                                    name = measure.getString("name"),
+                                    methods = methodsList
+                                    )
+                            )
+
+                        }
+                    }
+
+                }
+
 
                 devices[deviceKey] = DeviceInfo(
                     name = deviceJson.getString("name"),
                     shortName = deviceJson.getString("shortName"),
-                    services = services
+                    services = services,
+                    whiteboardMeasures = whiteboardMeasures,
+
                 )
             }
 

@@ -64,6 +64,14 @@ class BleAndMqttService : Service() {
     private var statusCallback: ((String) -> Unit)? = null
     private var dataCallback: ((String) -> Unit)? = null
 
+    companion object {
+        // ... existing constants
+        const val ACTION_CHARACTERISTIC_FOUND = "it.unisalento.bleiot.ACTION_CHARACTERISTIC_FOUND"
+        const val EXTRA_DEVICE_ADDRESS = "it.unisalento.bleiot.EXTRA_DEVICE_ADDRESS"
+        const val EXTRA_CHARACTERISTIC_UUID = "it.unisalento.bleiot.EXTRA_CHARACTERISTIC_UUID"
+    }
+
+
     inner class LocalBinder : Binder() {
         fun getService(): BleAndMqttService = this@BleAndMqttService
     }
@@ -431,6 +439,11 @@ class BleAndMqttService : Service() {
 
                         if (configPair != null) {
                             val (serviceInfo, characteristicInfo) = configPair
+                            val intent = Intent(ACTION_CHARACTERISTIC_FOUND).apply {
+                                putExtra(EXTRA_DEVICE_ADDRESS, gatt.device.address)
+                                putExtra(EXTRA_CHARACTERISTIC_UUID, characteristicInfo.name) // Assuming mUuid holds the UUID string
+                            }
+                            sendBroadcast(intent)
                             Log.i(TAG, "Found configured characteristic: ${characteristicInfo.name}")
 
                             // Check if this is the Movesense Whiteboard Write Char
@@ -466,24 +479,26 @@ class BleAndMqttService : Service() {
                             }
 
                             // Enable notifications for known characteristics
-                            if (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0) {
-                                gatt.setCharacteristicNotification(characteristic, true)
-
-                                // Enable the Client Characteristic Configuration Descriptor (CCCD)
-                                val desc_uuid = UUID.fromString(CCCD)
-                                val descriptor = characteristic.getDescriptor(desc_uuid)
-                                if (descriptor != null) {
-                                    descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
-                                    queueDescriptorWrite(gatt.device.address, descriptor)
-                                    enabledCharacteristics++
-                                    Log.i(TAG, "Queued notifications for ${characteristicInfo.name}")
-                                }
-                            }
+//                            if (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0) {
+//                                gatt.setCharacteristicNotification(characteristic, true)
+//
+//                                // Enable the Client Characteristic Configuration Descriptor (CCCD)
+//                                val desc_uuid = UUID.fromString(CCCD)
+//                                val descriptor = characteristic.getDescriptor(desc_uuid)
+//                                if (descriptor != null) {
+//                                    descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+//                                    queueDescriptorWrite(gatt.device.address, descriptor)
+//                                    enabledCharacteristics++
+//                                    Log.i(TAG, "Queued notifications for ${characteristicInfo.name}")
+//                                }
+//                            }
                         } else {
                             Log.i(TAG, "characteristic ${characteristic.uuid.toString()} not found")
                         }
                     }
                 }
+                deviceConfigManager.findWhiteboardSpecs(deviceName)
+
 
                 if (enabledCharacteristics > 0) {
                     updateStatus("Notifications enabled for $enabledCharacteristics characteristics")

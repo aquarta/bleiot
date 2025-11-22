@@ -1,8 +1,10 @@
 package it.unisalento.bleiot
 
 import android.bluetooth.BluetoothDevice
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -126,13 +128,17 @@ fun BleNotificationApp(
                 if (state.devicesList.isNotEmpty()) {
                     items(state.devicesList) { deviceInfo ->
                         val isConnected = deviceInfo.address in state.connectedDeviceAddresses
+                        if ( isConnected){
+                            val i = 0
+                        }
 
                         DeviceListItem(
                             deviceName = deviceInfo.name,
                             deviceAddress = deviceInfo.address,
                             isConnected = isConnected,
+                            deviceT = deviceInfo.deviceT,
                             onClick = {
-                                if (!isConnected) onDeviceClick(deviceInfo.device)
+                                if (!isConnected) onDeviceClick(deviceInfo.deviceT.device)
                             },
                             onDisconnectClick = {
                                 if (isConnected) onDisconnectClick(deviceInfo.address)
@@ -228,9 +234,10 @@ fun DeviceListSection(
                 DeviceListItem(
                     deviceName = deviceInfo.name,
                     deviceAddress = deviceInfo.address,
+                    deviceT = deviceInfo.deviceT,
                     isConnected = isConnected,
                     onClick = {
-                        if (!isConnected) onDeviceClick(deviceInfo.device)
+                        if (!isConnected) onDeviceClick(deviceInfo.deviceT.device)
                     },
                     onDisconnectClick = {
                         if (isConnected) onDisconnectClick()
@@ -264,6 +271,7 @@ fun DeviceListSection(
 fun DeviceListItem(
     deviceName: String,
     deviceAddress: String,
+    deviceT: BleDeviceInfoTrans,
     isConnected: Boolean,
     onClick: () -> Unit,
     onDisconnectClick: () -> Unit
@@ -333,8 +341,111 @@ fun DeviceListItem(
                     }
                 }
             }
+            if (isConnected){
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+
+                    CharListItem(
+                        services = deviceT.bleServices
+                    )
+
+
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Start,
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    WhiteBoardListItem(
+                        measureName = deviceT.whiteboardServices
+                    )
+                }
+            }
         }
     }
+
+}
+
+@Composable
+fun CharListItem(
+    services: List<String>,
+) {
+    // 1. Use a Column to stack the rows vertically
+    Column(
+        modifier = Modifier.padding(start = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp), // Adds space between the service rows
+        horizontalAlignment = Alignment.Start
+    ) {
+        // 2. Iterate through the services
+        for (service in services) {
+            // 3. Create a separate Button (or Row) for EACH service
+            Button(
+                onClick = { /* TODO: specific action for this service */ },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                ),
+                modifier = Modifier.height(32.dp)
+            ) {
+                Text(
+                    text = service,
+                    fontSize = 12.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun WhiteBoardListItem(
+    measureName: List<String>,
+    ) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth() // Changed from fillMaxHeight to fillMaxWidth for better list behavior
+            .padding(8.dp)
+            // ADDED: Light gray border with rounded corners
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant, // or Color.LightGray
+                shape = MaterialTheme.shapes.medium
+            )
+            .padding(16.dp), // Inner padding so content doesn't touch the border
+        horizontalArrangement = Arrangement.SpaceBetween, // Space between Label and Buttons
+        verticalAlignment = Alignment.Top
+    ){
+        Text(
+            text = "Whiteboard",
+            fontSize = 12.sp,
+            modifier = Modifier.padding(top = 8.dp)
+        )
+        Column(
+            verticalArrangement = Arrangement.spacedBy(8.dp), // Adds space between buttons
+            horizontalAlignment = Alignment.End
+        ) {
+            for (whiteboardService in measureName) {
+                Button(
+                    onClick = { TODO() },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    ),
+                    modifier = Modifier
+                        .padding(start = 8.dp)
+                        .height(32.dp)
+                ) {
+                    Text(
+                        text = whiteboardService.toString(),
+                        fontSize = 12.sp
+                    )
+                }
+            }
+
+        }
+    }
+
+
 }
 
 @Composable
