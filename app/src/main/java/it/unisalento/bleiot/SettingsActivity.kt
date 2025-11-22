@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -130,6 +131,8 @@ fun SettingsScreen(modifier: Modifier = Modifier, onMqttSettingsSaved: () -> Uni
     
     var mqttConfig by remember { mutableStateOf(mqttSettings.getMqttConfig()) }
     var serverText by remember { mutableStateOf(mqttConfig.server) }
+    var serverUser by remember { mutableStateOf(mqttConfig.user) }
+    var serverPassword by remember { mutableStateOf(mqttConfig.password) }
     var portText by remember { mutableStateOf(mqttConfig.port.toString()) }
     var configUrlText by remember { mutableStateOf(mqttSettings.getDeviceConfigUrl()) }
     var showSuccessMessage by remember { mutableStateOf(false) }
@@ -190,11 +193,33 @@ fun SettingsScreen(modifier: Modifier = Modifier, onMqttSettingsSaved: () -> Uni
                             .fillMaxWidth()
                             .padding(bottom = 16.dp)
                     )
+
+                    OutlinedTextField(
+                        value = serverUser.toString(),
+                        onValueChange = { serverUser = it },
+                        label = { Text("MQTT User") },
+                        placeholder = { Text("user") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                    )
+
+                    OutlinedTextField(
+                        value = serverPassword.toString(),
+                        onValueChange = { serverPassword = it },
+                        label = { Text("MQTT Password") },
+                        placeholder = { Text("password") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                    )
                     
                     Button(
                         onClick = {
                             val port = portText.toIntOrNull() ?: 1883
-                            val newConfig = MqttConfig(serverText, port)
+                            val newConfig = MqttConfig(serverText, port, serverUser, serverPassword)
                             mqttSettings.saveMqttConfig(newConfig)
                             mqttConfig = newConfig
                             showSuccessMessage = true

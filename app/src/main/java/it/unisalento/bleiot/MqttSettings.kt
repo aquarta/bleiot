@@ -5,7 +5,9 @@ import android.content.SharedPreferences
 
 data class MqttConfig(
     val server: String = "broker.hivemq.com",
-    val port: Int = 1883
+    val port: Int = 1883,
+    val user: String? = "",
+    val password: String? = "",
 )
 
 data class AppConfig(
@@ -22,6 +24,8 @@ class MqttSettings private constructor(context: Context) {
         sharedPreferences.edit().apply {
             putString(KEY_MQTT_SERVER, config.server)
             putInt(KEY_MQTT_PORT, config.port)
+            putString(KEY_MQTT_USER, config.user)
+            putString(KEY_MQTT_PASSWORD, config.password)
             apply()
         }
     }
@@ -29,7 +33,9 @@ class MqttSettings private constructor(context: Context) {
     fun getMqttConfig(): MqttConfig {
         return MqttConfig(
             server = sharedPreferences.getString(KEY_MQTT_SERVER, "vmi2211704.contaboserver.net") ?: "vmi2211704.contaboserver.net",
-            port = sharedPreferences.getInt(KEY_MQTT_PORT, 1883)
+            port = sharedPreferences.getInt(KEY_MQTT_PORT, 1883),
+            user = sharedPreferences.getString(KEY_MQTT_USER, ""),
+            password = sharedPreferences.getString(KEY_MQTT_PASSWORD, ""),
         )
     }
 
@@ -54,7 +60,10 @@ class MqttSettings private constructor(context: Context) {
     companion object {
         private const val PREFS_NAME = "mqtt_settings"
         private const val KEY_MQTT_SERVER = "mqtt_server"
-        private const val KEY_MQTT_PORT = "mqtt_port"
+        private const val KEY_MQTT_PORT = "1883"
+        private const val KEY_MQTT_USER = "mqtt_user"
+        private const val KEY_MQTT_PASSWORD = "mqtt_password"
+
         private const val KEY_DEVICE_CONFIG_URL = "device_config_url"
 
         @Volatile

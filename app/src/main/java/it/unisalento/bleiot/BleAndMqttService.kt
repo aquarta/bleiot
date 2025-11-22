@@ -10,7 +10,9 @@ import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.os.Handler
+import android.os.Looper
 import android.util.Log
+import androidx.annotation.RequiresPermission
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import com.movesense.mds.Mds
@@ -37,8 +39,6 @@ class BleAndMqttService : Service() {
     private var mqttClient: MqttClient? = null
     private val MQTT_CLIENT_ID = "AndroidBleClient" + System.currentTimeMillis()
     private val MQTT_TOPIC = "ble/temperature"
-    private val MQTT_USERNAME = "your_username" // Optional
-    private val MQTT_PASSWORD = "your_password" // Optional
     private lateinit var mqttSettings: MqttSettings
     private lateinit var deviceConfigManager: DeviceConfigurationManager
 
@@ -68,6 +68,7 @@ class BleAndMqttService : Service() {
         // ... existing constants
         const val ACTION_CHARACTERISTIC_FOUND = "it.unisalento.bleiot.ACTION_CHARACTERISTIC_FOUND"
         const val ACTION_WHITEBOARD_FOUND = "it.unisalento.bleiot.ACTION_WHITEBOARD_FOUND"
+        const val ACTION_ENABLE_CHAR_NOTIFY = "it.unisalento.bleiot.ACTION_ENABLE_CHAR_NOTIFY"
         const val EXTRA_DEVICE_ADDRESS = "it.unisalento.bleiot.EXTRA_DEVICE_ADDRESS"
         const val EXTRA_CHARACTERISTIC_UUID = "it.unisalento.bleiot.EXTRA_CHARACTERISTIC_UUID"
         const val EXTRA_WHITEBOARD = "it.unisalento.bleiot.EXTRA_WHITEBOARD"
@@ -94,6 +95,7 @@ class BleAndMqttService : Service() {
         setupMqttClient()
     }
 
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val notification = createNotification("Service is running")
         startForeground(NOTIFICATION_ID, notification)
@@ -115,9 +117,51 @@ class BleAndMqttService : Service() {
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             }
+            ACTION_ENABLE_CHAR_NOTIFY -> {
+                val address = intent.getStringExtra(EXTRA_DEVICE_ADDRESS)
+                val charUuid = intent.getStringExtra(EXTRA_CHARACTERISTIC_UUID)
+                if (address != null && charUuid != null) {
+                    enableNotificationsForCharacteristic(address, charUuid)
+                }
+            }
         }
 
         return START_STICKY
+    }
+
+
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    private fun enableNotificationsForCharacteristic(address: String, charName: String) {
+        val gatt = gattConnections[address] ?: return
+        // translate char info name to char uuid
+        val characteristicInfo = deviceConfigManager.findConfChar(gatt.device.name, charName)
+        if(characteristicInfo == null) {
+            Log.w(TAG, "Characteristic $charName not found for $address $gatt.device.name)")
+            return
+        }
+        for ( gattservice in gatt.services){
+            for (characteristic in gattservice.characteristics) {
+                if (characteristic.uuid.toString() == characteristicInfo.uuid) {
+
+                    // Enable notifications for known characteristics
+                    if (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0) {
+                        gatt.setCharacteristicNotification(characteristic, true)
+
+                        // Enable the Client Characteristic Configuration Descriptor (CCCD)
+                        val desc_uuid = UUID.fromString(CCCD)
+                        val descriptor = characteristic.getDescriptor(desc_uuid)
+                        if (descriptor != null) {
+                            descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+                            queueDescriptorWrite(gatt.device.address, descriptor)
+
+                            Log.i(TAG, "Queued notifications for ${characteristicInfo.name}")
+                        }
+                    }
+                }
+            }
+        }
+
     }
 
     override fun onBind(intent: Intent): IBinder {
@@ -208,15 +252,17 @@ class BleAndMqttService : Service() {
             )
 
             val options = MqttConnectOptions()
-            if (MQTT_USERNAME.isNotEmpty() && MQTT_PASSWORD.isNotEmpty()) {
-                options.userName = MQTT_USERNAME
-                options.password = MQTT_PASSWORD.toCharArray()
+            if (config.user != null){
+                options.userName = config.user
+            }
+            if (config.password != null) {
+                options.password = config.password.toCharArray()
             }
             options.isAutomaticReconnect = true
             options.isCleanSession = true
-
+            Log.i(TAG, "Connect MQTT client:  ${config.server}:${config.port} ${options.userName}")
             mqttClient?.connect(options)
-            updateStatus("Connected to MQTT broker at ${config.server}:${config.port}")
+            updateStatus("Connected to MQTT broker at ${config.server}:${config.port} ${options.userName}")
 
         } catch (e: MqttException) {
             Log.e(TAG, "Error setting up MQTT client: ${e.message}")
@@ -416,7 +462,7 @@ class BleAndMqttService : Service() {
                 val deviceName = gatt.device.name
 
                 if (false && deviceName.contains("Movesense")) {
-                    Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    Handler(Looper.getMainLooper()).postDelayed({
                             movesenseGetInfo(gatt)
                         }, 5000L) // 5s for first, 6s for second, etc.
 
@@ -469,7 +515,7 @@ class BleAndMqttService : Service() {
                                     commands.forEachIndexed { index, command ->
                                         Log.i(TAG, "Found Movesense GATT Sensor Data Write Char, queuing measurement command: ${command.contentToString()}")
                                         // Add a small delay to ensure all services are fully discovered before writing
-                                        Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                        Handler(Looper.getMainLooper()).postDelayed({
                                             queueCharacteristicWrite(gatt.device.address, characteristic, command)
                                         }, 5000L + (index * 1000L)) // 5s for first, 6s for second, etc.
                                     }
@@ -479,20 +525,7 @@ class BleAndMqttService : Service() {
                                 }
                             }
 
-                            // Enable notifications for known characteristics
-//                            if (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0) {
-//                                gatt.setCharacteristicNotification(characteristic, true)
-//
-//                                // Enable the Client Characteristic Configuration Descriptor (CCCD)
-//                                val desc_uuid = UUID.fromString(CCCD)
-//                                val descriptor = characteristic.getDescriptor(desc_uuid)
-//                                if (descriptor != null) {
-//                                    descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
-//                                    queueDescriptorWrite(gatt.device.address, descriptor)
-//                                    enabledCharacteristics++
-//                                    Log.i(TAG, "Queued notifications for ${characteristicInfo.name}")
-//                                }
-//                            }
+
                         } else {
                             Log.i(TAG, "characteristic ${characteristic.uuid.toString()} not found")
                         }
@@ -697,6 +730,8 @@ class BleAndMqttService : Service() {
                         val mutableData = parsedData.toMutableMap()
                         mutableData["deviceName"] = deviceName ?: "Unknown"
                         mutableData["deviceAddress"] = gatt.device.address ?: "Unknown"
+                        gatt.readRemoteRssi()
+                        gatt.readPhy()
                         mutableData
                     } else {
                         parsedData

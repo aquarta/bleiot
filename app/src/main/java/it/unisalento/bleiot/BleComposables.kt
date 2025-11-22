@@ -1,6 +1,7 @@
 package it.unisalento.bleiot
 
 import android.bluetooth.BluetoothDevice
+import android.content.Intent
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -14,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -349,7 +351,8 @@ fun DeviceListItem(
                 ) {
 
                     CharListItem(
-                        services = deviceT.bleServices
+                        services = deviceT.bleServices,
+                        deviceAddress = deviceAddress
                     )
 
 
@@ -372,7 +375,9 @@ fun DeviceListItem(
 @Composable
 fun CharListItem(
     services: List<String>,
+    deviceAddress: String
 ) {
+    val context = LocalContext.current
     // 1. Use a Column to stack the rows vertically
     Column(
         modifier = Modifier.padding(start = 8.dp),
@@ -383,7 +388,16 @@ fun CharListItem(
         for (service in services) {
             // 3. Create a separate Button (or Row) for EACH service
             Button(
-                onClick = { /* TODO: specific action for this service */ },
+                onClick = {
+                        val intent = Intent(context, BleAndMqttService::class.java).apply {
+                        // Use the specific ACTION you added to the Service for enabling notify
+                        action = BleAndMqttService.ACTION_ENABLE_CHAR_NOTIFY
+                        putExtra(BleAndMqttService.EXTRA_DEVICE_ADDRESS, deviceAddress)
+                        putExtra(BleAndMqttService.EXTRA_CHARACTERISTIC_UUID, service)
+                    }
+                        // Start the service with the intent created above
+                    context.startService(intent)
+                },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary
                 ),

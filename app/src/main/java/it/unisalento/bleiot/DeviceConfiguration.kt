@@ -93,6 +93,22 @@ class DeviceConfigurationManager private constructor(context: Context) {
 //        }
     }
 
+    fun findConfChar(deviceName: String, charName: String ): CharacteristicInfo? {
+        val deviceConfig = findDeviceConfig(deviceName) ?: return null
+
+        for (service in deviceConfig.services) {
+            //Log.d(TAG, "See if match serviceUuid: ${serviceUuid} ${service.uuid}")
+            for (characteristic in service.characteristics) {
+                if (characteristic.name == charName) {
+                    Log.d(TAG, "Pair Found:  ${deviceName} ${service.uuid} ${characteristic}")
+                    return characteristic
+                }
+
+            }
+        }
+        return null
+    }
+
     fun findServiceAndCharacteristic(deviceName: String?, serviceUuid: String, characteristicUuid: String): Pair<ServiceInfo, CharacteristicInfo>? {
         val deviceConfig = findDeviceConfig(deviceName) ?: return null
         //Log.i(TAG, "See if deviceName: ${deviceName} ${deviceConfig}")
