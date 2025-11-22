@@ -125,8 +125,9 @@ class RemoteConfigManager private constructor(private val context: Context) {
         return try {
             val name = measureMap["name"] as? String ?: return null
             val methods = measureMap["methods"] as? List<String> ?: emptyList()
+            val path = measureMap["path"] as? String ?: return null
 
-            WhiteboardMeasure(name, methods)
+            WhiteboardMeasure(name, methods, path)
         } catch (e: Exception) {
             Log.e(TAG, "Error parsing service info", e)
             null

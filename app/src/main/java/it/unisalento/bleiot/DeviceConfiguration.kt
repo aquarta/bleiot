@@ -27,6 +27,7 @@ data class WhiteboardMeasure(
 
     val name: String,
     val methods: List<String> = emptyList(),
+    val path: String,
 )
 
 data class CharacteristicInfo(
@@ -83,11 +84,13 @@ class DeviceConfigurationManager private constructor(context: Context) {
         return null
     }
 
-    fun findWhiteboardSpecs(deviceName: String?)  {
-        val deviceConfig = findDeviceConfig(deviceName) ?: return
-        for (whiteBoardMeasure in deviceConfig.whiteboardMeasures) {
-            Log.d(TAG, "whiteBoardMeasure Pair Found:  ${deviceName} ${whiteBoardMeasure}")
-        }
+    fun findWhiteboardSpecs(deviceName: String?): List<WhiteboardMeasure>? {
+        val deviceConfig = findDeviceConfig(deviceName) ?: return null
+        return deviceConfig.whiteboardMeasures
+
+//        for (whiteBoardMeasure in deviceConfig.whiteboardMeasures) {
+//            Log.d(TAG, "whiteBoardMeasure Pair Found:  ${deviceName} ${whiteBoardMeasure}")
+//        }
     }
 
     fun findServiceAndCharacteristic(deviceName: String?, serviceUuid: String, characteristicUuid: String): Pair<ServiceInfo, CharacteristicInfo>? {
@@ -195,6 +198,7 @@ class DeviceConfigurationManager private constructor(context: Context) {
                     device.whiteboardMeasures.forEach { measure ->
                         val measureJson = JSONObject()
                         measureJson.put("name", measure.name)
+                        measureJson.put("path", measure.path)
 
                         val methodsArray = JSONArray()
                         measure.methods.forEach { method ->
@@ -294,7 +298,8 @@ class DeviceConfigurationManager private constructor(context: Context) {
                             whiteboardMeasures.add(
                                 WhiteboardMeasure(
                                     name = measure.getString("name"),
-                                    methods = methodsList
+                                    methods = methodsList,
+                                    path = measure.getString("path")
                                 )
                             )
                         }

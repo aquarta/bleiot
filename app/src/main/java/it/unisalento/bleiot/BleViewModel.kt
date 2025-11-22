@@ -69,11 +69,13 @@ class BleViewModel : ViewModel() {
         // --- ADD THIS: Register the receiver here ---
         val filter = IntentFilter().apply {
             addAction(BleAndMqttService.ACTION_CHARACTERISTIC_FOUND)
+            addAction(BleAndMqttService.ACTION_WHITEBOARD_FOUND)
             //putExtra(BleAndMqttService.EXTRA_DEVICE_ADDRESS, "address_placeholder") // Just to access constants safely if needed
         }
         // Use the appContext we just captured
         //appContext?.registerReceiver(characteristicReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         appContext?.registerReceiver(characteristicReceiver, filter, Context.RECEIVER_EXPORTED)
+        appContext?.registerReceiver(whiteboardReceiver, filter, Context.RECEIVER_EXPORTED)
         // Note: Context.RECEIVER_NOT_EXPORTED is recommended for Android 14+
     }
 
@@ -336,12 +338,24 @@ class BleViewModel : ViewModel() {
         // Safe unregister
         try {
             appContext?.unregisterReceiver(characteristicReceiver)
+            appContext?.unregisterReceiver(whiteboardReceiver)
         } catch (e: Exception) {
             Log.e(TAG, "Receiver was not registered")
         }
     }
 
 
+    private val whiteboardReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == BleAndMqttService.ACTION_WHITEBOARD_FOUND) {
+                val address = intent.getStringExtra(BleAndMqttService.EXTRA_DEVICE_ADDRESS)
+                val whiteboardName = intent.getStringExtra(BleAndMqttService.EXTRA_WHITEBOARD)
+                if (address != null && whiteboardName != null) {
+                    updateDeviceWhiteBoard(address, whiteboardName)
+                }
+            }
+        }
+    }
     // Add the broadcast receiver
     private val characteristicReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -353,6 +367,30 @@ class BleViewModel : ViewModel() {
                 updateDeviceUuid(address, uuid)
             }
         }
+        }
+    }
+
+    private fun updateDeviceWhiteBoard(address: String, whiteboardName: String) {
+        val index = scannedDevices.indexOfFirst { it.address == address }
+
+        if (index != -1) {
+            val originalDevice: BleDeviceInfoTrans = scannedDevices[index]
+
+            // 1. Create the new list of services safely
+            // Check if UUID is already there to avoid duplicates
+            if (originalDevice.whiteboardServices.contains(whiteboardName)) return
+
+            val updatedServices = originalDevice.whiteboardServices + whiteboardName
+
+            // 2. Create a COPY of the Trans object with the new list
+            val updatedDeviceTrans = originalDevice.copy(whiteboardServices = updatedServices)
+
+            // 3. REPLACE the object in the source of truth list
+            scannedDevices[index] = updatedDeviceTrans
+
+            // 4. Trigger the UI update
+            // We don't need to pass arguments anymore because scannedDevices is now updated
+            updateDevicesList()
         }
     }
 
