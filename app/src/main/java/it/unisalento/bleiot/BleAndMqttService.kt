@@ -730,6 +730,8 @@ class BleAndMqttService : Service() {
                         val mutableData = parsedData.toMutableMap()
                         mutableData["deviceName"] = deviceName ?: "Unknown"
                         mutableData["deviceAddress"] = gatt.device.address ?: "Unknown"
+                        mutableData["gatewayName"] = bluetoothAdapter?.name ?: "Unknown"
+                        mutableData["gatewayAddress"] = bluetoothAdapter?.address ?: "Unknown"
                         gatt.readRemoteRssi()
                         gatt.readPhy()
                         mutableData
