@@ -351,7 +351,7 @@ fun DeviceListItem(
                 ) {
 
                     CharListItem(
-                        services = deviceT.bleServices,
+                        charNames = deviceT.bleServices,
                         deviceAddress = deviceAddress
                     )
 
@@ -363,7 +363,8 @@ fun DeviceListItem(
                     verticalAlignment = Alignment.Bottom
                 ) {
                     WhiteBoardListItem(
-                        measureName = deviceT.whiteboardServices
+                        measureNames = deviceT.whiteboardServices,
+                        deviceAddress = deviceAddress
                     )
                 }
             }
@@ -374,7 +375,7 @@ fun DeviceListItem(
 
 @Composable
 fun CharListItem(
-    services: List<String>,
+    charNames: List<String>,
     deviceAddress: String
 ) {
     val context = LocalContext.current
@@ -385,7 +386,7 @@ fun CharListItem(
         horizontalAlignment = Alignment.Start
     ) {
         // 2. Iterate through the services
-        for (service in services) {
+        for (charName in charNames) {
             // 3. Create a separate Button (or Row) for EACH service
             Button(
                 onClick = {
@@ -393,9 +394,9 @@ fun CharListItem(
                         // Use the specific ACTION you added to the Service for enabling notify
                         action = BleAndMqttService.ACTION_ENABLE_CHAR_NOTIFY
                         putExtra(BleAndMqttService.EXTRA_DEVICE_ADDRESS, deviceAddress)
-                        putExtra(BleAndMqttService.EXTRA_CHARACTERISTIC_UUID, service)
+                        putExtra(BleAndMqttService.EXTRA_CHARACTERISTIC_NAME, charName)
                     }
-                        // Start the service with the intent created above
+                    // Start the service with the intent created above
                     context.startService(intent)
                 },
                 colors = ButtonDefaults.buttonColors(
@@ -404,7 +405,7 @@ fun CharListItem(
                 modifier = Modifier.height(32.dp)
             ) {
                 Text(
-                    text = service,
+                    text = charName,
                     fontSize = 12.sp
                 )
             }
@@ -414,8 +415,10 @@ fun CharListItem(
 
 @Composable
 fun WhiteBoardListItem(
-    measureName: List<String>,
+    measureNames: List<String>,
+    deviceAddress: String,
     ) {
+    val context = LocalContext.current
     Row(
         modifier = Modifier
             .fillMaxWidth() // Changed from fillMaxHeight to fillMaxWidth for better list behavior
@@ -439,9 +442,18 @@ fun WhiteBoardListItem(
             verticalArrangement = Arrangement.spacedBy(8.dp), // Adds space between buttons
             horizontalAlignment = Alignment.End
         ) {
-            for (whiteboardService in measureName) {
+            for (measureName in measureNames) {
                 Button(
-                    onClick = { TODO() },
+                    onClick = {
+                        val intent = Intent(context, BleAndMqttService::class.java).apply {
+                            // Use the specific ACTION you added to the Service for enabling notify
+                            action = BleAndMqttService.ACTION_ENABLE_WHITEBOARD_SUBSCRIBE
+                            putExtra(BleAndMqttService.EXTRA_DEVICE_ADDRESS, deviceAddress)
+                            putExtra(BleAndMqttService.EXTRA_WHITEBOARD_MEASURE, measureName)
+                        }
+                        // Start the service with the intent created above
+                        context.startService(intent)
+                    },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary
                     ),
@@ -450,7 +462,7 @@ fun WhiteBoardListItem(
                         .height(32.dp)
                 ) {
                     Text(
-                        text = whiteboardService.toString(),
+                        text = measureName.toString(),
                         fontSize = 12.sp
                     )
                 }

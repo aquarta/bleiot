@@ -361,7 +361,7 @@ class BleViewModel : ViewModel() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == BleAndMqttService.ACTION_CHARACTERISTIC_FOUND) {
             val address = intent.getStringExtra(BleAndMqttService.EXTRA_DEVICE_ADDRESS)
-            val uuid = intent.getStringExtra(BleAndMqttService.EXTRA_CHARACTERISTIC_UUID)
+            val uuid = intent.getStringExtra(BleAndMqttService.EXTRA_CHARACTERISTIC_NAME)
 
             if (address != null && uuid != null) {
                 updateDeviceUuid(address, uuid)
