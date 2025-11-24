@@ -18,6 +18,7 @@ import androidx.core.app.NotificationCompat
 import com.movesense.mds.Mds
 import com.movesense.mds.MdsConnectionListener
 import com.movesense.mds.MdsException
+import com.movesense.mds.MdsNotificationListener
 import com.movesense.mds.MdsResponseListener
 import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_COMMAND_ID
 import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_HR_ID
@@ -70,8 +71,11 @@ class BleAndMqttService : Service() {
         const val ACTION_WHITEBOARD_FOUND = "it.unisalento.bleiot.ACTION_WHITEBOARD_FOUND"
         const val ACTION_ENABLE_CHAR_NOTIFY = "it.unisalento.bleiot.ACTION_ENABLE_CHAR_NOTIFY"
         const val EXTRA_DEVICE_ADDRESS = "it.unisalento.bleiot.EXTRA_DEVICE_ADDRESS"
-        const val EXTRA_CHARACTERISTIC_UUID = "it.unisalento.bleiot.EXTRA_CHARACTERISTIC_UUID"
+        const val EXTRA_CHARACTERISTIC_NAME = "it.unisalento.bleiot.EXTRA_CHARACTERISTIC_NAME"
         const val EXTRA_WHITEBOARD = "it.unisalento.bleiot.EXTRA_WHITEBOARD"
+        const val ACTION_ENABLE_WHITEBOARD_SUBSCRIBE = "it.unisalento.bleiot.ACTION_ENABLE_WHITEBOARD_SUBSCRIBE"
+        const val EXTRA_WHITEBOARD_MEASURE = "it.unisalento.bleiot.EXTRA_WHITEBOARD_MEASURE"
+
     }
 
 
@@ -119,9 +123,16 @@ class BleAndMqttService : Service() {
             }
             ACTION_ENABLE_CHAR_NOTIFY -> {
                 val address = intent.getStringExtra(EXTRA_DEVICE_ADDRESS)
-                val charUuid = intent.getStringExtra(EXTRA_CHARACTERISTIC_UUID)
+                val charUuid = intent.getStringExtra(EXTRA_CHARACTERISTIC_NAME)
                 if (address != null && charUuid != null) {
                     enableNotificationsForCharacteristic(address, charUuid)
+                }
+            }
+            ACTION_ENABLE_WHITEBOARD_SUBSCRIBE -> {
+                val address = intent.getStringExtra(EXTRA_DEVICE_ADDRESS)
+                val measureName = intent.getStringExtra(EXTRA_WHITEBOARD_MEASURE)
+                if (address != null && measureName != null) {
+                    enableSubscriptionForWhiteBoardMeasure(address, measureName)
                 }
             }
         }
@@ -161,6 +172,80 @@ class BleAndMqttService : Service() {
                 }
             }
         }
+
+    }
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    private fun enableSubscriptionForWhiteBoardMeasure(address: String, measureName: String) {
+        val gatt = gattConnections[address] ?: return
+        // translate char info name to char uuid
+        val whiteboardMeasure = deviceConfigManager.findMeasurePath(gatt.device.name, measureName)
+        if(whiteboardMeasure == null) {
+            Log.w(TAG, "whiteboardMeasure $measureName not found for $address $gatt.device.name)")
+            return
+        }
+
+        Log.i(TAG, "enableSubscriptionForWhiteBoardMeasure $whiteboardMeasure --> ${whiteboardMeasure.path}")
+
+//        Mds.builder().build(this@BleAndMqttService)
+//            .post("suunto://MDS/EventListener", "{\"Uri\": \"223430000418/Meas/IMU9/13\"}", object : MdsResponseListener {
+//                override fun onSuccess(data: String) {
+//
+//                    Log.d(
+//                        TAG,
+//                        "ID: " + gatt.device.name + " [GET]/223430000418${whiteboardMeasure.path} " + " OUTPUT: " + data
+//                    );
+//                }
+//
+//                override fun onError(error: MdsException) {
+//                    Log.e(
+//                        TAG,
+//                        " + gatt.device.name + " + "onError() [GET]/223430000418${whiteboardMeasure.path} ",
+//                        error
+//                    );
+//                }
+//            })
+        Mds.builder().build(this@BleAndMqttService).subscribe(
+            "suunto://MDS/EventListener",
+            "{\"Uri\": \"223430000418/Meas/IMU9/13\"}",
+            object : MdsNotificationListener {
+                override fun onNotification(data: String) {
+
+                    Log.d(
+                        TAG,
+                        "Notificaiton: $address $gatt.device.name" + data
+                    );
+                }
+                override fun onError(error: MdsException) {
+                    Log.e(
+                        TAG,
+                        " + gatt.device.name + " + "onError() [GET]/223430000418${whiteboardMeasure.path} ",
+                        error
+                    );
+                }
+
+            }
+        )
+//        for ( gattservice in gatt.services){
+//            for (characteristic in gattservice.characteristics) {
+//                if (characteristic.uuid.toString() == characteristicInfo.uuid) {
+//
+//                    // Enable notifications for known characteristics
+//                    if (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0) {
+//                        gatt.setCharacteristicNotification(characteristic, true)
+//
+//                        // Enable the Client Characteristic Configuration Descriptor (CCCD)
+//                        val desc_uuid = UUID.fromString(CCCD)
+//                        val descriptor = characteristic.getDescriptor(desc_uuid)
+//                        if (descriptor != null) {
+//                            descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+//                            queueDescriptorWrite(gatt.device.address, descriptor)
+//
+//                            Log.i(TAG, "Queued notifications for ${characteristicInfo.name}")
+//                        }
+//                    }
+//                }
+//            }
+//        }
 
     }
 
@@ -488,7 +573,7 @@ class BleAndMqttService : Service() {
                             val (serviceInfo, characteristicInfo) = configPair
                             val intent = Intent(ACTION_CHARACTERISTIC_FOUND).apply {
                                 putExtra(EXTRA_DEVICE_ADDRESS, gatt.device.address)
-                                putExtra(EXTRA_CHARACTERISTIC_UUID, characteristicInfo.name) // Assuming mUuid holds the UUID string
+                                putExtra(EXTRA_CHARACTERISTIC_NAME, characteristicInfo.name) // Assuming mUuid holds the UUID string
                             }
                             sendBroadcast(intent)
                             Log.i(TAG, "Found configured characteristic: ${characteristicInfo.name}")

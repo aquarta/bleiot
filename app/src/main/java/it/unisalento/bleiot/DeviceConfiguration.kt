@@ -109,6 +109,17 @@ class DeviceConfigurationManager private constructor(context: Context) {
         return null
     }
 
+    fun findMeasurePath(deviceName: String, measureName: String ): WhiteboardMeasure? {
+        val deviceConfig = findDeviceConfig(deviceName) ?: return null
+
+        for (measure in deviceConfig.whiteboardMeasures) {
+            if (measureName == measure.name){
+                return measure
+            }
+        }
+        return null
+    }
+
     fun findServiceAndCharacteristic(deviceName: String?, serviceUuid: String, characteristicUuid: String): Pair<ServiceInfo, CharacteristicInfo>? {
         val deviceConfig = findDeviceConfig(deviceName) ?: return null
         //Log.i(TAG, "See if deviceName: ${deviceName} ${deviceConfig}")
