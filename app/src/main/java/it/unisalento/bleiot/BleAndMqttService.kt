@@ -25,6 +25,7 @@ import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_HR_ID
 import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_IMU_ID
 import org.eclipse.paho.client.mqttv3.*
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
+import org.json.JSONException
 import org.json.JSONObject
 import java.util.*
 
@@ -46,6 +47,7 @@ class BleAndMqttService : Service() {
     // BLE properties
     private var bluetoothAdapter: BluetoothAdapter? = null
     private val connectedDevices = mutableMapOf<String, BluetoothDevice>()
+    private val movesenseConnectedDevices = mutableMapOf<String, String>()
     private val gattConnections = mutableMapOf<String, BluetoothGatt>()
 
     // Queue for descriptor operations per device
@@ -184,6 +186,11 @@ class BleAndMqttService : Service() {
             return
         }
 
+
+        if (!movesenseConnectedDevices.containsKey(gatt.device.address)){
+            return
+        }
+        val movesenseSerial = movesenseConnectedDevices[gatt.device.address]
         Log.i(TAG, "enableSubscriptionForWhiteBoardMeasure $whiteboardMeasure --> ${whiteboardMeasure.path}")
 
 //        Mds.builder().build(this@BleAndMqttService)
@@ -206,9 +213,23 @@ class BleAndMqttService : Service() {
 //            })
         Mds.builder().build(this@BleAndMqttService).subscribe(
             "suunto://MDS/EventListener",
-            "{\"Uri\": \"223430000418/Meas/IMU9/13\"}",
+            "{\"Uri\": \"${movesenseSerial}${whiteboardMeasure.path}\"}",
             object : MdsNotificationListener {
+                @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
                 override fun onNotification(data: String) {
+                    try {
+                        // 1. Parse the raw JSON string
+                        val mutableData = JSONObject(data)
+
+                        mutableData.put("deviceName", "Movesense ${movesenseSerial}" ?: "Unknown")
+                        mutableData.put("deviceAddress" , gatt.device.address ?: "Unknown")
+                        mutableData.put("gatewayName", bluetoothAdapter?.name ?: "Unknown")
+                        mutableData.put("gatewayAddress", bluetoothAdapter?.address ?: "Unknown")
+                        publishToMqtt("ble/movesense/imu9", mutableData.toString())
+
+                        } catch (e: JSONException) {
+                            Log.e(TAG, "Error parsing JSON data: $data", e)
+                        }
 
                     Log.d(
                         TAG,
@@ -218,35 +239,13 @@ class BleAndMqttService : Service() {
                 override fun onError(error: MdsException) {
                     Log.e(
                         TAG,
-                        " + gatt.device.name + " + "onError() [GET]/223430000418${whiteboardMeasure.path} ",
+                        " + gatt.device.name + " + "onError() [GET]/${movesenseSerial}/${whiteboardMeasure.path} ",
                         error
                     );
                 }
 
             }
         )
-//        for ( gattservice in gatt.services){
-//            for (characteristic in gattservice.characteristics) {
-//                if (characteristic.uuid.toString() == characteristicInfo.uuid) {
-//
-//                    // Enable notifications for known characteristics
-//                    if (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0) {
-//                        gatt.setCharacteristicNotification(characteristic, true)
-//
-//                        // Enable the Client Characteristic Configuration Descriptor (CCCD)
-//                        val desc_uuid = UUID.fromString(CCCD)
-//                        val descriptor = characteristic.getDescriptor(desc_uuid)
-//                        if (descriptor != null) {
-//                            descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
-//                            queueDescriptorWrite(gatt.device.address, descriptor)
-//
-//                            Log.i(TAG, "Queued notifications for ${characteristicInfo.name}")
-//                        }
-//                    }
-//                }
-//            }
-//        }
-
     }
 
     override fun onBind(intent: Intent): IBinder {
@@ -433,6 +432,7 @@ class BleAndMqttService : Service() {
 
                         override fun onConnectionComplete(macAddress: String, serial: String) {
                             Log.d(TAG, "Connected :$macAddress --> $serial")
+                            movesenseConnectedDevices[macAddress] = serial
                         }
 
                         override fun onError(e: MdsException) {
