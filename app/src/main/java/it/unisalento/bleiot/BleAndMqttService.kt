@@ -209,7 +209,7 @@ class BleAndMqttService : Service() {
                             mutableData.put("deviceAddress" , gatt.device.address ?: "Unknown")
                             mutableData.put("gatewayName", bluetoothAdapter?.name ?: "Unknown")
                             mutableData.put("gatewayAddress", bluetoothAdapter?.address ?: "Unknown")
-                            publishToMqtt("ble/movesense/imu9", mutableData.toString())
+                            publishToMqtt(whiteboardMeasure.mqttTopic, mutableData.toString())
 
                         } catch (e: JSONException) {
                             Log.e(TAG, "Error parsing JSON data: $data", e)
