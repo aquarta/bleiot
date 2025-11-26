@@ -915,6 +915,12 @@ class BleAndMqttService : Service() {
     }
 
 
+    private fun getBatteryLevel(): Int {
+        val batteryManager = getSystemService(Context.BATTERY_SERVICE) as BatteryManager
+        return batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+    }
+
+
     // Update status helpers
     private fun updateStatus(status: String) {
         Log.i(TAG, "Status: $status")
