@@ -6,6 +6,7 @@ import android.bluetooth.*
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.BatteryManager
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
@@ -829,9 +830,9 @@ class BleAndMqttService : Service() {
                         mutableData["deviceName"] = deviceName ?: "Unknown"
                         mutableData["deviceAddress"] = gatt.device.address ?: "Unknown"
                         mutableData["gatewayName"] = bluetoothAdapter?.name ?: "Unknown"
-                        mutableData["gatewayAddress"] = bluetoothAdapter?.address ?: "Unknown"
-                        gatt.readRemoteRssi()
-                        gatt.readPhy()
+                        mutableData["gatewayBattery"] = getBatteryLevel()
+
+
                         mutableData
                     } else {
                         parsedData
