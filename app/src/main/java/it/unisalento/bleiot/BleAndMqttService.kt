@@ -30,6 +30,7 @@ import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 import org.json.JSONException
 import org.json.JSONObject
 import java.util.*
+import kotlin.collections.set
 
 
 private const val CCCD = "00002902-0000-1000-8000-00805f9b34fb"
@@ -208,8 +209,8 @@ class BleAndMqttService : Service() {
                             mutableData.put("deviceName", "Movesense ${movesenseSerial}" ?: "Unknown")
                             mutableData.put("deviceAddress" , gatt.device.address ?: "Unknown")
                             mutableData.put("gatewayName", bluetoothAdapter?.name ?: "Unknown")
-                            mutableData.put("gatewayAddress", bluetoothAdapter?.address ?: "Unknown")
                             publishToMqtt(whiteboardMeasure.mqttTopic, mutableData.toString())
+                            mutableData.put("gatewayBattery", getBatteryLevel())
 
                         } catch (e: JSONException) {
                             Log.e(TAG, "Error parsing JSON data: $data", e)
@@ -372,7 +373,7 @@ class BleAndMqttService : Service() {
         Log.w(TAG, "Reconnecting to MQTT server")
         setupMqttClient();
     }
-    private fun publishToMqtt(topic: String, message: String) {
+    private fun publishToMqtt(topic: String?, message: String) {
         try {
             if (mqttClient?.isConnected == true) {
                 val mqttMessage = MqttMessage(message.toByteArray())
