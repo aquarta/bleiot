@@ -217,7 +217,7 @@ class BleAndMqttService : Service() {
 
                         Log.d(
                             TAG,
-                            "Notificaiton: $address $gatt.device.name" + data
+                            "Notification: $address $gatt.device.name" + data
                         );
                     }
                     override fun onError(error: MdsException) {
