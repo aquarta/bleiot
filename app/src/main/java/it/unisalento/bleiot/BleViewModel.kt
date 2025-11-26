@@ -97,8 +97,12 @@ class BleViewModel : ViewModel() {
 
     fun onScanClicked() {
         if (!scanning) {
-            // Clear the previously scanned devices first
+            // Clear the previously scanned devices first, but keep connected ones
+            val connectedAddresses = uiState.value.connectedDeviceAddresses
+            val connectedDevicesList = scannedDevices.filter { it.address in connectedAddresses }
             scannedDevices.clear()
+            scannedDevices.addAll(connectedDevicesList)
+
             updateDevicesList()
             startScan()
         } else {

@@ -126,8 +126,9 @@ class RemoteConfigManager private constructor(private val context: Context) {
             val name = measureMap["name"] as? String ?: return null
             val methods = measureMap["methods"] as? List<String> ?: emptyList()
             val path = measureMap["path"] as? String ?: return null
+            val mqttTopic = measureMap["mqttTopic"] as? String ?: return null
 
-            WhiteboardMeasure(name, methods, path)
+            WhiteboardMeasure(name, methods, path, mqttTopic)
         } catch (e: Exception) {
             Log.e(TAG, "Error parsing service info", e)
             null

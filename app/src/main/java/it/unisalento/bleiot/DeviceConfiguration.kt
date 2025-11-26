@@ -28,6 +28,7 @@ data class WhiteboardMeasure(
     val name: String,
     val methods: List<String> = emptyList(),
     val path: String,
+    val mqttTopic: String? = null,
 )
 
 data class CharacteristicInfo(
@@ -226,6 +227,7 @@ class DeviceConfigurationManager private constructor(context: Context) {
                         val measureJson = JSONObject()
                         measureJson.put("name", measure.name)
                         measureJson.put("path", measure.path)
+                        measureJson.put("mqttTopic", measure.mqttTopic)
 
                         val methodsArray = JSONArray()
                         measure.methods.forEach { method ->
@@ -326,7 +328,8 @@ class DeviceConfigurationManager private constructor(context: Context) {
                                 WhiteboardMeasure(
                                     name = measure.getString("name"),
                                     methods = methodsList,
-                                    path = measure.getString("path")
+                                    path = measure.getString("path"),
+                                    mqttTopic = measure.getString("mqttTopic")
                                 )
                             )
                         }
