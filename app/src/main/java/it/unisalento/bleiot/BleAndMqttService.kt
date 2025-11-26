@@ -18,6 +18,7 @@ import androidx.core.app.NotificationCompat
 import com.movesense.mds.Mds
 import com.movesense.mds.MdsConnectionListener
 import com.movesense.mds.MdsException
+import com.movesense.mds.MdsHeader
 import com.movesense.mds.MdsNotificationListener
 import com.movesense.mds.MdsResponseListener
 import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_COMMAND_ID
@@ -192,60 +193,72 @@ class BleAndMqttService : Service() {
         }
         val movesenseSerial = movesenseConnectedDevices[gatt.device.address]
         Log.i(TAG, "enableSubscriptionForWhiteBoardMeasure $whiteboardMeasure --> ${whiteboardMeasure.path}")
+        if (whiteboardMeasure.methods[0] == "subscribe"){
+            Mds.builder().build(this@BleAndMqttService).subscribe(
+                "suunto://MDS/EventListener",
+                "{\"Uri\": \"${movesenseSerial}${whiteboardMeasure.path}\"}",
+                object : MdsNotificationListener {
+                    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+                    override fun onNotification(data: String) {
+                        try {
+                            // 1. Parse the raw JSON string
+                            val mutableData = JSONObject(data)
 
-//        Mds.builder().build(this@BleAndMqttService)
-//            .post("suunto://MDS/EventListener", "{\"Uri\": \"223430000418/Meas/IMU9/13\"}", object : MdsResponseListener {
-//                override fun onSuccess(data: String) {
-//
-//                    Log.d(
-//                        TAG,
-//                        "ID: " + gatt.device.name + " [GET]/223430000418${whiteboardMeasure.path} " + " OUTPUT: " + data
-//                    );
-//                }
-//
-//                override fun onError(error: MdsException) {
-//                    Log.e(
-//                        TAG,
-//                        " + gatt.device.name + " + "onError() [GET]/223430000418${whiteboardMeasure.path} ",
-//                        error
-//                    );
-//                }
-//            })
-        Mds.builder().build(this@BleAndMqttService).subscribe(
-            "suunto://MDS/EventListener",
-            "{\"Uri\": \"${movesenseSerial}${whiteboardMeasure.path}\"}",
-            object : MdsNotificationListener {
-                @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-                override fun onNotification(data: String) {
-                    try {
-                        // 1. Parse the raw JSON string
-                        val mutableData = JSONObject(data)
-
-                        mutableData.put("deviceName", "Movesense ${movesenseSerial}" ?: "Unknown")
-                        mutableData.put("deviceAddress" , gatt.device.address ?: "Unknown")
-                        mutableData.put("gatewayName", bluetoothAdapter?.name ?: "Unknown")
-                        mutableData.put("gatewayAddress", bluetoothAdapter?.address ?: "Unknown")
-                        publishToMqtt("ble/movesense/imu9", mutableData.toString())
+                            mutableData.put("deviceName", "Movesense ${movesenseSerial}" ?: "Unknown")
+                            mutableData.put("deviceAddress" , gatt.device.address ?: "Unknown")
+                            mutableData.put("gatewayName", bluetoothAdapter?.name ?: "Unknown")
+                            mutableData.put("gatewayAddress", bluetoothAdapter?.address ?: "Unknown")
+                            publishToMqtt("ble/movesense/imu9", mutableData.toString())
 
                         } catch (e: JSONException) {
                             Log.e(TAG, "Error parsing JSON data: $data", e)
                         }
 
-                    Log.d(
-                        TAG,
-                        "Notificaiton: $address $gatt.device.name" + data
-                    );
-                }
-                override fun onError(error: MdsException) {
-                    Log.e(
-                        TAG,
-                        " + gatt.device.name + " + "onError() [GET]/${movesenseSerial}/${whiteboardMeasure.path} ",
-                        error
-                    );
-                }
+                        Log.d(
+                            TAG,
+                            "Notificaiton: $address $gatt.device.name" + data
+                        );
+                    }
+                    override fun onError(error: MdsException) {
+                        Log.e(
+                            TAG,
+                            " + gatt.device.name + " + "onError() [GET]/${movesenseSerial}/${whiteboardMeasure.path} ",
+                            error
+                        );
+                    }
 
-            }
-        )
+                }
+            )
+
+
+        }
+        else if (whiteboardMeasure.methods[0] == "get"){
+            Mds.builder().build(this@BleAndMqttService).get(
+                "suunto://MDS/EventListener",
+                "{\"Uri\": \"${movesenseSerial}${whiteboardMeasure.path}\"}",
+                object : MdsResponseListener {
+
+                    override fun onSuccess(data: String, header: MdsHeader) {
+                        Log.d(
+                            TAG,
+                            "Get Respones: $address $gatt.device.name ${whiteboardMeasure.path}" + data
+                        );
+                    }
+
+                    override fun onError(error: MdsException?) {
+                        Log.e(
+                            TAG,
+                            " + gatt.device.name + " + "onError() [GET]/${movesenseSerial}/${whiteboardMeasure.path} ",
+                            error
+                        );
+                    }
+
+                }
+            )
+        }
+
+
+
     }
 
     override fun onBind(intent: Intent): IBinder {
