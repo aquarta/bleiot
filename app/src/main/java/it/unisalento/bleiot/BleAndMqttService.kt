@@ -22,6 +22,7 @@ import com.movesense.mds.MdsException
 import com.movesense.mds.MdsHeader
 import com.movesense.mds.MdsNotificationListener
 import com.movesense.mds.MdsResponseListener
+import com.movesense.mds.MdsSubscription
 import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_COMMAND_ID
 import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_HR_ID
 import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_IMU_ID
@@ -61,6 +62,7 @@ class BleAndMqttService : Service() {
     data class CharacteristicWrite(val characteristic: BluetoothGattCharacteristic, val data: ByteArray)
     private val characteristicWriteQueues = mutableMapOf<String, MutableList<CharacteristicWrite>>()
     private val isWritingCharacteristics = mutableMapOf<String, Boolean>()
+    private val mSubscriptions = mutableMapOf<String, MdsSubscription>()
 
 
     // Binder for activity communication
@@ -196,7 +198,7 @@ class BleAndMqttService : Service() {
         val movesenseSerial = movesenseConnectedDevices[gatt.device.address]
         Log.i(TAG, "enableSubscriptionForWhiteBoardMeasure $whiteboardMeasure --> ${whiteboardMeasure.path}")
         if (whiteboardMeasure.methods[0] == "subscribe"){
-            Mds.builder().build(this@BleAndMqttService).subscribe(
+            val mSub = Mds.builder().build(this@BleAndMqttService).subscribe(
                 "suunto://MDS/EventListener",
                 "{\"Uri\": \"${movesenseSerial}${whiteboardMeasure.path}\"}",
                 object : MdsNotificationListener {
@@ -224,14 +226,14 @@ class BleAndMqttService : Service() {
                     override fun onError(error: MdsException) {
                         Log.e(
                             TAG,
-                            " + gatt.device.name + " + "onError() [GET]/${movesenseSerial}/${whiteboardMeasure.path} ",
+                            " + ${gatt.device.name} + " + "onError() [GET]/${movesenseSerial}/${whiteboardMeasure.path} ",
                             error
                         );
                     }
 
                 }
             )
-
+            mSubscriptions[whiteboardMeasure.path] = mSub
 
         }
         else if (whiteboardMeasure.methods[0] == "get"){
