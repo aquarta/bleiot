@@ -174,13 +174,15 @@ class MainActivity : ComponentActivity() {
                                     uuid = "00140000-0001-11e1-ac36-0002a5d5c51b",
                                     name = "Temperature Data",
                                     dataType = "custom_temperature",
-                                    mqttTopic = "ble/temperature"
+                                    mqttTopic = "ble/temperature",
+                                    structParser = null
                                 ),
                                 CharacteristicInfo(
                                     uuid = "001c0000-0001-11e1-ac36-0002a5d5c51b",
                                     name = "Battery Data",
                                     dataType = "STBatteryStruct",
-                                    mqttTopic = "ble/battery"
+                                    mqttTopic = "ble/battery",
+                                    structParser = null
                                 )
                             )
                         )
