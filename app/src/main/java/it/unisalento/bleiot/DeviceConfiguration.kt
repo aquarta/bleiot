@@ -36,13 +36,36 @@ data class CharacteristicInfo(
     val name: String,
     val dataType: String,
     val mqttTopic: String,
-    val customParser: String? = null
+    val customParser: String? = null,
+    val structParser: Map<String, Any>?
 )
 
 data class DataTypeInfo(
     val size: String,
     val conversion: String,
     val description: String? = null
+)
+
+// This represents the 'structParser' section in YAML
+data class StructParserConfig(
+    val endianness: String = "LITTLE_ENDIAN",
+    val fields: List<StructField> = emptyList()
+)
+
+// This represents a single item in the 'fields' list
+data class StructField(
+    val name: String,
+    val type: String
+)
+
+// Update your existing Characteristic config class to include the new field
+data class BleCharacteristicConfig(
+    val uuid: String,
+    val name: String,
+    val dataType: String?,
+    val mqttTopic: String?,
+    // Add this nullable field:
+    val structParser: StructParserConfig? = null
 )
 
 class DeviceConfigurationManager private constructor(context: Context) {
@@ -209,6 +232,7 @@ class DeviceConfigurationManager private constructor(context: Context) {
                                     put("dataType", characteristic.dataType)
                                     put("mqttTopic", characteristic.mqttTopic)
                                     characteristic.customParser?.let { put("customParser", it) }
+                                    characteristic.structParser?.let { put("structParser", it) }
                                 }
                                 Log.i(TAG,"${charJson}");
                                 characteristicsArray.put(charJson)
@@ -293,7 +317,9 @@ class DeviceConfigurationManager private constructor(context: Context) {
                                         name = charJson.getString("name"),
                                         dataType = charJson.getString("dataType"),
                                         mqttTopic = charJson.getString("mqttTopic"),
-                                        customParser = charJson.optString("customParser").takeIf { it.isNotEmpty() }
+                                        customParser = charJson.optString("customParser")
+                                            .takeIf { it.isNotEmpty() },
+                                        structParser = charJson.optJSONArray("structParser") as Map<String, Any>?
                                     )
                                 )
                             }
