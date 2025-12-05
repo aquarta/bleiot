@@ -134,7 +134,7 @@ devices:
             dataType: "custom_temperature"
             mqttTopic: "ble/temperature"
             customParser: "parseTemperatureDeta"
-          - uuid: "00140000-0001-11e1-ac36-0002a5d5c51b"
+          - uuid: "00e00000-0001-11e1-ac36-0002a5d5c51b"
             name: "ST BLE PNP IMU"
             dataType: "custom_imu"
             mqttTopic: "ble/dummy/imu"
@@ -182,16 +182,16 @@ devices:
           - uuid: "001c0000-0001-11e1-ac36-0002a5d5c51b"
             name: "TEMPERATURE AND HUMIDITY"
             dataType: "custom_temperature_humidity"
-            mqttTopic: "ble/dummy"
+            mqttTopic: "ble/temperature"
             structParser:
               endianness: "LITTLE_ENDIAN"
               fields:
                 - name: "timestamp"
                   type: "ushort"
                 - name: "pressure"
-                  type: "ushort"
+                  type: "int"
                 - name: "humidity"
-                  type: "ushort"
+                  type: "short"
                 - name: "temperature"
                   type: "short"
 
