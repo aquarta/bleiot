@@ -1,5 +1,6 @@
 package it.unisalento.bleiot
 
+import GenericStructParser
 import android.content.Context
 import android.util.Log
 import org.json.JSONArray
@@ -37,8 +38,9 @@ data class CharacteristicInfo(
     val dataType: String,
     val mqttTopic: String,
     val customParser: String? = null,
-    val structParser: Map<String, Any>?
+    val structParser: StructParserConfig? = null
 )
+
 
 data class DataTypeInfo(
     val size: String,
@@ -183,7 +185,9 @@ class DeviceConfigurationManager private constructor(context: Context) {
     fun parseCharacteristicData(characteristicInfo: CharacteristicInfo, data: ByteArray, deviceName: String? = null, deviceAddress: String? = null): Any? {
         val config = getDeviceConfiguration() ?: return null
         val dataTypeInfo = config.dataTypes[characteristicInfo.dataType]
-        
+        if (characteristicInfo.structParser!=null){
+            return GenericStructParser(characteristicInfo.structParser).unpack(data)
+        }
         return when (characteristicInfo.dataType) {
             "4_byte_double" -> BleDataParsers.parse4ByteDouble(data)
             "4_byte_integer" -> BleDataParsers.parse4ByteInteger(data)
@@ -199,7 +203,7 @@ class DeviceConfigurationManager private constructor(context: Context) {
             }
         }
     }
-    
+
     private fun loadConfigFromStorage() {
         val jsonString = sharedPreferences.getString(KEY_DEVICE_CONFIG, null)
         if (jsonString != null) {
@@ -232,7 +236,21 @@ class DeviceConfigurationManager private constructor(context: Context) {
                                     put("dataType", characteristic.dataType)
                                     put("mqttTopic", characteristic.mqttTopic)
                                     characteristic.customParser?.let { put("customParser", it) }
-                                    characteristic.structParser?.let { put("structParser", it) }
+                                    characteristic.structParser?.let { parserConfig ->
+                                        val parserJson = JSONObject()
+                                        parserJson.put("endianness", parserConfig.endianness)
+
+                                        val fieldsArray = JSONArray()
+                                        parserConfig.fields.forEach { field ->
+                                            val fieldJson = JSONObject()
+                                            fieldJson.put("name", field.name)
+                                            fieldJson.put("type", field.type)
+                                            fieldsArray.put(fieldJson)
+                                        }
+                                        parserJson.put("fields", fieldsArray)
+
+                                        put("structParser", parserJson)
+                                    }
                                 }
                                 Log.i(TAG,"${charJson}");
                                 characteristicsArray.put(charJson)
@@ -308,9 +326,35 @@ class DeviceConfigurationManager private constructor(context: Context) {
 
                         val characteristics = mutableListOf<CharacteristicInfo>()
                         val characteristicsArray = serviceJson.optJSONArray("characteristics")
+
                         characteristicsArray?.let { charArray ->
                             for (j in 0 until charArray.length()) {
                                 val charJson = charArray.getJSONObject(j)
+                                // Parse the StructParserConfig if it exists
+                                val structParserJson = charJson.optJSONObject("structParser")
+                                var structParserConfig: StructParserConfig? = null
+
+                                if (structParserJson != null) {
+                                    val fieldsList = mutableListOf<StructField>()
+                                    val fieldsArray = structParserJson.optJSONArray("fields")
+
+                                    if (fieldsArray != null) {
+                                        for (k in 0 until fieldsArray.length()) {
+                                            val fieldObj = fieldsArray.getJSONObject(k)
+                                            fieldsList.add(
+                                                StructField(
+                                                    name = fieldObj.getString("name"),
+                                                    type = fieldObj.getString("type")
+                                                )
+                                            )
+                                        }
+                                    }
+
+                                    structParserConfig = StructParserConfig(
+                                        endianness = structParserJson.optString("endianness", "LITTLE_ENDIAN"),
+                                        fields = fieldsList
+                                    )
+                                }
                                 characteristics.add(
                                     CharacteristicInfo(
                                         uuid = charJson.getString("uuid"),
@@ -319,7 +363,7 @@ class DeviceConfigurationManager private constructor(context: Context) {
                                         mqttTopic = charJson.getString("mqttTopic"),
                                         customParser = charJson.optString("customParser")
                                             .takeIf { it.isNotEmpty() },
-                                        structParser = charJson.optJSONArray("structParser") as Map<String, Any>?
+                                        structParser = structParserConfig
                                     )
                                 )
                             }

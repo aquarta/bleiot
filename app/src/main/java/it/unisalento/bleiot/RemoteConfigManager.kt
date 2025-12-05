@@ -151,23 +151,52 @@ class RemoteConfigManager private constructor(private val context: Context) {
             null
         }
     }
-    
+
     private fun parseCharacteristicInfo(charMap: Map<String, Any>): CharacteristicInfo? {
-        return try {
-            val uuid = charMap["uuid"] as? String ?: return null
+        return try {val uuid = charMap["uuid"] as? String ?: return null
             val name = charMap["name"] as? String ?: "Unknown Characteristic"
             val dataType = charMap["dataType"] as? String ?: return null
             val mqttTopic = charMap["mqttTopic"] as? String ?: "ble/data"
             val customParser = charMap["customParser"] as? String
-            val structParser = charMap["structParser"] as? Map<String, Any>
-            
-            CharacteristicInfo(uuid, name, dataType, mqttTopic, customParser, structParser)
+
+            // FIX: Get the map, then convert it to the object using a helper function
+            val structParserMap = charMap["structParser"] as? Map<String, Any>
+            val structParserConfig = if (structParserMap != null) {
+                parseStructParserConfig(structParserMap)
+            } else {
+                null
+            }
+
+            CharacteristicInfo(uuid, name, dataType, mqttTopic, customParser, structParserConfig)
         } catch (e: Exception) {
             Log.e(TAG, "Error parsing characteristic info", e)
             null
         }
     }
-    
+
+    private fun parseStructParserConfig(map: Map<String, Any>): StructParserConfig? {
+        return try {
+            val endianness = map["endianness"] as? String ?: "LITTLE_ENDIAN"
+
+            // Parse the fields list
+            val rawFields = map["fields"] as? List<Map<String, Any>> ?: emptyList()
+
+            val fields = rawFields.map { fieldMap ->
+                StructField(
+                    name = fieldMap["name"] as? String ?: "unknown",
+                    type = fieldMap["type"] as? String ?: "byte"
+                )
+            }
+
+            StructParserConfig(endianness, fields)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error parsing struct parser config", e)
+            null
+        }
+    }
+
+
+
     private fun parseDataTypeInfo(typeMap: Map<String, Any>): DataTypeInfo? {
         return try {
             val size = typeMap["size"] as? String ?: return null
