@@ -19,6 +19,8 @@ import androidx.compose.animation.core.copy
 import androidx.core.app.ActivityCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,7 +29,7 @@ import kotlinx.coroutines.launch
 import org.eclipse.paho.client.mqttv3.*
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 import java.util.*
-
+import kotlinx.coroutines.flow.receiveAsFlow
 
 class BleViewModel : ViewModel() {
     private val TAG = "BleViewModel"
@@ -51,6 +53,8 @@ class BleViewModel : ViewModel() {
     // UI State
     private val _uiState = MutableStateFlow(BleUiState())
     val uiState: StateFlow<BleUiState> = _uiState.asStateFlow()
+    // A channel to buffer and throttle UI updates
+    private val uiUpdateTrigger = kotlinx.coroutines.channels.Channel<Unit>(kotlinx.coroutines.channels.Channel.CONFLATED)
 
     // Service and context references
     private var bleAndMqttService: BleAndMqttService? = null
@@ -77,6 +81,16 @@ class BleViewModel : ViewModel() {
         appContext?.registerReceiver(characteristicReceiver, filter, Context.RECEIVER_EXPORTED)
         appContext?.registerReceiver(whiteboardReceiver, filter, Context.RECEIVER_EXPORTED)
         // Note: Context.RECEIVER_NOT_EXPORTED is recommended for Android 14+
+        // Launch a coroutine to handle UI updates smoothly
+        viewModelScope.launch(Dispatchers.Main) {
+            // receiveAsFlow combined with delay acts as a rate limiter
+            uiUpdateTrigger.receiveAsFlow().collect {
+                updateDevicesList()
+                // Wait 300ms before allowing the next UI update.
+                // Any updates arriving during this time are conflated (merged).
+                delay(300)
+            }
+        }
     }
 
     fun setService(service: BleAndMqttService) {
@@ -97,13 +111,6 @@ class BleViewModel : ViewModel() {
 
     fun onScanClicked() {
         if (!scanning) {
-            // Clear the previously scanned devices first, but keep connected ones
-            val connectedAddresses = uiState.value.connectedDeviceAddresses
-            val connectedDevicesList = scannedDevices.filter { it.address in connectedAddresses }
-            scannedDevices.clear()
-            scannedDevices.addAll(connectedDevicesList)
-
-            updateDevicesList()
             startScan()
         } else {
             stopScan()
@@ -138,6 +145,13 @@ class BleViewModel : ViewModel() {
                 updateStatus("Cannot access Bluetooth scanner")
                 return
             }
+
+            // Clear the previously scanned devices first, but keep connected ones
+            val connectedAddresses = uiState.value.connectedDeviceAddresses
+            val connectedDevicesList = scannedDevices.filter { it.address in connectedAddresses }
+            scannedDevices.clear()
+            scannedDevices.addAll(connectedDevicesList)
+            updateDevicesList()
 
             // Stop scanning after a pre-defined period
             handler.postDelayed({
@@ -304,34 +318,34 @@ class BleViewModel : ViewModel() {
 
     private fun updateDevicesList() {
         appContext?.let { context ->
+            // 1. Check permission ONCE, outside the loop
+            val hasConnectPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                ActivityCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.BLUETOOTH_CONNECT
+                ) == PackageManager.PERMISSION_GRANTED
+            } else {
+                true
+            }
+
+            // 2. Create the new list efficiently
+            // toList() creates a shallow copy which is safe for the UI state
+            val currentScannedDevices = scannedDevices.toList()
+
             _uiState.update { currentState ->
-
                 currentState.copy(
-
-                    devicesList = scannedDevices.map { device ->
-                        // Check for permissions
-                        if (ActivityCompat.checkSelfPermission(
-                                context,
-                                Manifest.permission.BLUETOOTH_CONNECT
-                            ) == PackageManager.PERMISSION_GRANTED || Build.VERSION.SDK_INT < Build.VERSION_CODES.S
-                        ) {
-                            BleDeviceInfo(
-                                name = device.name ?: "Unknown Device",
-                                address = device.address,
-                                deviceT = device
-                            )
-                        } else {
-                            BleDeviceInfo(
-                                name = "Unknown Device",
-                                address = device.address,
-                                deviceT = device
-                            )
-                        }
+                    devicesList = currentScannedDevices.map { deviceTrans ->
+                        BleDeviceInfo(
+                            name = if (hasConnectPermission) deviceTrans.name else "Unknown Device",
+                            address = deviceTrans.address,
+                            deviceT = deviceTrans
+                        )
                     }
                 )
             }
         }
     }
+
 
     override fun onCleared() {
         super.onCleared()
@@ -354,12 +368,18 @@ class BleViewModel : ViewModel() {
             if (intent?.action == BleAndMqttService.ACTION_WHITEBOARD_FOUND) {
                 val address = intent.getStringExtra(BleAndMqttService.EXTRA_DEVICE_ADDRESS)
                 val whiteboardName = intent.getStringExtra(BleAndMqttService.EXTRA_WHITEBOARD)
+
                 if (address != null && whiteboardName != null) {
-                    updateDeviceWhiteBoard(address, whiteboardName)
+                    // Force Main thread to ensure list safety if scannedDevices isn't thread-safe
+                    viewModelScope.launch(Dispatchers.Main) {
+                        updateDeviceWhiteBoard(address, whiteboardName)
+                    }
                 }
             }
         }
     }
+
+
     // Add the broadcast receiver
     private val characteristicReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -375,28 +395,36 @@ class BleViewModel : ViewModel() {
     }
 
     private fun updateDeviceWhiteBoard(address: String, whiteboardName: String) {
+        // Use a lock or synchronized block if scannedDevices is a standard MutableList
+        // Note: If scannedDevices is a mutableStateList, you should only modify it on Main thread.
+        // Assuming it's a standard MutableList<BleDeviceInfoTrans>:
+
         val index = scannedDevices.indexOfFirst { it.address == address }
 
         if (index != -1) {
-            val originalDevice: BleDeviceInfoTrans = scannedDevices[index]
+            if (scannedDevices[index].whiteboardServices.contains(whiteboardName)) {
+                return // EXIT HERE - Do not trigger UI update
+            }
+            val originalDevice = scannedDevices[index]
 
-            // 1. Create the new list of services safely
-            // Check if UUID is already there to avoid duplicates
+            // OPTIMIZATION: Check duplicate before doing anything else
             if (originalDevice.whiteboardServices.contains(whiteboardName)) return
 
+            // Create new data
             val updatedServices = originalDevice.whiteboardServices + whiteboardName
-
-            // 2. Create a COPY of the Trans object with the new list
             val updatedDeviceTrans = originalDevice.copy(whiteboardServices = updatedServices)
 
-            // 3. REPLACE the object in the source of truth list
+            // Update the source list
             scannedDevices[index] = updatedDeviceTrans
 
-            // 4. Trigger the UI update
-            // We don't need to pass arguments anymore because scannedDevices is now updated
-            updateDevicesList()
+//            // Post the update to the UI
+//            updateDevicesList()
+            // replaced with
+            // Trigger a UI update (this is now throttled)
+            uiUpdateTrigger.trySend(Unit)
         }
     }
+
 
     private fun updateDeviceUuid(address: String, uuid: String) {
         // Find the index of the device in your mutable list
