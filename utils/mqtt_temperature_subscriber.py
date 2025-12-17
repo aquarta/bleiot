@@ -7,14 +7,16 @@ Receives temperature messages from ble/temperature topic
 import paho.mqtt.client as mqtt
 import json
 import datetime
+import os
 
 # MQTT Configuration
-MQTT_BROKER = "broker.hivemq.com"  # Change to your MQTT broker address
-MQTT_PORT = 1883
+MQTT_BROKER = os.environ.get('EMQX_HOST')  # Change to your MQTT broker address
+MQTT_PORT = os.environ.get('EMQX_MQTT_PORT')
+MQTT_USERNAME = os.environ.get('EMQX_MQTT_USER')  # Set if authentication is required
+MQTT_PASSWORD = os.environ.get('EMQX_MQTT_PASSWORD')  # Set if authentication is required
+
 MQTT_TOPIC = "ble/+"
-MQTT_TOPIC2 = "ble/movesense"
-MQTT_USERNAME = None  # Set if authentication is required
-MQTT_PASSWORD = None  # Set if authentication is required
+MQTT_TOPIC2 = "ble/dummy/+"
 
 def on_connect(client, userdata, flags, rc):
     """Callback for when the client receives a CONNACK response from the server."""
