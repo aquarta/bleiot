@@ -55,7 +55,7 @@ dependencies {
     implementation("io.reactivex.rxjava2:rxandroid:2.1.1")
     implementation("io.reactivex.rxjava2:rxjava:2.2.8")
     // Movesense .aar lib
-    implementation(dependencyNotation = files("../mds_lib/mdslib-3.27.0-release.aar"))
+    implementation(dependencyNotation = files("../mds_lib/mdslib-3.33.1-release.aar"))
 
 
     // Add Paho MQTT Client
