@@ -13,6 +13,7 @@ import android.os.IBinder
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import androidx.activity.result.launch
 import androidx.annotation.RequiresPermission
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
@@ -26,14 +27,17 @@ import com.movesense.mds.MdsSubscription
 import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_COMMAND_ID
 import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_HR_ID
 import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_IMU_ID
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import org.eclipse.paho.client.mqttv3.*
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 import org.json.JSONException
 import org.json.JSONObject
 import java.util.*
 import kotlin.collections.set
-
-
+import kotlinx.coroutines.launch
+// Add a scope to the Service class members if you don't have one
+private val serviceScope = CoroutineScope(Dispatchers.IO)
 private const val CCCD = "00002902-0000-1000-8000-00805f9b34fb"
 
 class BleAndMqttService : Service() {
@@ -211,17 +215,18 @@ class BleAndMqttService : Service() {
                             mutableData.put("deviceName", "Movesense ${movesenseSerial}" ?: "Unknown")
                             mutableData.put("deviceAddress" , gatt.device.address ?: "Unknown")
                             mutableData.put("gatewayName", bluetoothAdapter?.name ?: "Unknown")
-                            publishToMqtt(whiteboardMeasure.mqttTopic, mutableData.toString())
+
                             mutableData.put("gatewayBattery", getBatteryLevel())
+                            publishToMqtt(whiteboardMeasure.mqttTopic, mutableData.toString())
 
                         } catch (e: JSONException) {
                             Log.e(TAG, "Error parsing JSON data: $data", e)
                         }
 
-                        Log.d(
-                            TAG,
-                            "Notification: $address $gatt.device.name" + data
-                        );
+//                        Log.d(
+//                            TAG,
+//                            "Notification: $address $gatt.device.name" + data
+//                        );
                     }
                     override fun onError(error: MdsException) {
                         Log.e(
@@ -243,10 +248,10 @@ class BleAndMqttService : Service() {
                 object : MdsResponseListener {
 
                     override fun onSuccess(data: String, header: MdsHeader) {
-                        Log.d(
-                            TAG,
-                            "Get Respones: $address $gatt.device.name ${whiteboardMeasure.path}" + data
-                        );
+//                        Log.d(
+//                            TAG,
+//                            "Get Respones: $address $gatt.device.name ${whiteboardMeasure.path}" + data
+//                        );
                     }
 
                     override fun onError(error: MdsException?) {
@@ -376,25 +381,28 @@ class BleAndMqttService : Service() {
         setupMqttClient();
     }
     private fun publishToMqtt(topic: String?, message: String) {
-        try {
-            if (mqttClient?.isConnected == true) {
-                val mqttMessage = MqttMessage(message.toByteArray())
-                mqttMessage.qos = 1
-                mqttClient?.publish(topic, mqttMessage)
-                Log.i(TAG, "Published to MQTT: $message")
-            } else {
-                Log.w(TAG, "MQTT client not connected, attempting to reconnect")
-                setupMqttClient()
-                // Try again after reconnection attempt
+        serviceScope.launch {
+            try {
                 if (mqttClient?.isConnected == true) {
                     val mqttMessage = MqttMessage(message.toByteArray())
-                    mqttMessage.qos = 1
+                    mqttMessage.qos = 0 // fastest
+                    //mqttMessage.qos = 1 receipt
                     mqttClient?.publish(topic, mqttMessage)
+                    Log.i(TAG, "Published to MQTT: $message")
+                } else {
+                    Log.w(TAG, "MQTT client not connected, attempting to reconnect")
+                    setupMqttClient()
+                    // Try again after reconnection attempt
+                    if (mqttClient?.isConnected == true) {
+                        val mqttMessage = MqttMessage(message.toByteArray())
+                        mqttMessage.qos = 1
+                        mqttClient?.publish(topic, mqttMessage)
+                    }
                 }
+            } catch (e: MqttException) {
+                reconnectMqttClient();
+                Log.e(TAG, "Error publishing to MQTT: ${e.message}")
             }
-        } catch (e: MqttException) {
-            reconnectMqttClient();
-            Log.e(TAG, "Error publishing to MQTT: ${e.message}")
         }
     }
 

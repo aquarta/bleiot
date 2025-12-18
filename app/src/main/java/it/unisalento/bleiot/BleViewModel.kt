@@ -40,7 +40,8 @@ class BleViewModel : ViewModel() {
     private var bluetoothLeScanner: BluetoothLeScanner? = null
     private var scanning = false
     private val handler = Handler(Looper.getMainLooper())
-    private val scannedDevices = mutableListOf<BleDeviceInfoTrans>()
+    // Map address -> Device Info
+    private val scannedDevicesMap = mutableMapOf<String, BleDeviceInfoTrans>()
 
 
 
@@ -148,10 +149,16 @@ class BleViewModel : ViewModel() {
 
             // Clear the previously scanned devices first, but keep connected ones
             val connectedAddresses = uiState.value.connectedDeviceAddresses
-            val connectedDevicesList = scannedDevices.filter { it.address in connectedAddresses }
-            scannedDevices.clear()
-            scannedDevices.addAll(connectedDevicesList)
-            updateDevicesList()
+
+            // 1. Identify keys (addresses) that should be kept
+            val keysToKeep = scannedDevicesMap.keys.filter { it in connectedAddresses }.toSet()
+
+            // 2. Remove everything else
+            scannedDevicesMap.keys.retainAll(keysToKeep)
+
+            // 3. Trigger UI update
+            uiUpdateTrigger.trySend(Unit)
+
 
             // Stop scanning after a pre-defined period
             handler.postDelayed({
@@ -221,9 +228,12 @@ class BleViewModel : ViewModel() {
                 Log.i(TAG, "Found device: $deviceName ${device.address}")
 
                 // Add device to list if it's not already there
-                if (device.name != null && !scannedDevices.any { it.address == device.address }) {
-                    scannedDevices.add(scannedDeviceTrans)
-                    updateDevicesList()
+                if (device.name != null && !scannedDevicesMap.containsKey(device.address)) {
+                    scannedDevicesMap[device.address] = scannedDeviceTrans
+
+                    // CHANGE THIS:
+                    // updateDevicesList()// TO THIS:
+                    uiUpdateTrigger.trySend(Unit)
                 }
             }
         }
@@ -330,7 +340,7 @@ class BleViewModel : ViewModel() {
 
             // 2. Create the new list efficiently
             // toList() creates a shallow copy which is safe for the UI state
-            val currentScannedDevices = scannedDevices.toList()
+            val currentScannedDevices = scannedDevicesMap.values.toList()
 
             _uiState.update { currentState ->
                 currentState.copy(
@@ -395,60 +405,41 @@ class BleViewModel : ViewModel() {
     }
 
     private fun updateDeviceWhiteBoard(address: String, whiteboardName: String) {
-        // Use a lock or synchronized block if scannedDevices is a standard MutableList
-        // Note: If scannedDevices is a mutableStateList, you should only modify it on Main thread.
-        // Assuming it's a standard MutableList<BleDeviceInfoTrans>:
+        // Instant lookup
+        val originalDevice = scannedDevicesMap[address] ?: return
 
-        val index = scannedDevices.indexOfFirst { it.address == address }
+        if (originalDevice.whiteboardServices.contains(whiteboardName)) return
 
-        if (index != -1) {
-            if (scannedDevices[index].whiteboardServices.contains(whiteboardName)) {
-                return // EXIT HERE - Do not trigger UI update
-            }
-            val originalDevice = scannedDevices[index]
+        val updatedServices = originalDevice.whiteboardServices + whiteboardName
+        val updatedDeviceTrans = originalDevice.copy(whiteboardServices = updatedServices)
 
-            // OPTIMIZATION: Check duplicate before doing anything else
-            if (originalDevice.whiteboardServices.contains(whiteboardName)) return
-
-            // Create new data
-            val updatedServices = originalDevice.whiteboardServices + whiteboardName
-            val updatedDeviceTrans = originalDevice.copy(whiteboardServices = updatedServices)
-
-            // Update the source list
-            scannedDevices[index] = updatedDeviceTrans
-
-//            // Post the update to the UI
-//            updateDevicesList()
-            // replaced with
-            // Trigger a UI update (this is now throttled)
-            uiUpdateTrigger.trySend(Unit)
-        }
+        scannedDevicesMap[address] = updatedDeviceTrans
+        uiUpdateTrigger.trySend(Unit)
     }
+
+
+
 
 
     private fun updateDeviceUuid(address: String, uuid: String) {
         // Find the index of the device in your mutable list
-        val index = scannedDevices.indexOfFirst { it.address == address }
+        // Instant lookup using the HashMap
+        val originalDevice = scannedDevicesMap[address] ?: return
 
-        if (index != -1) {
-            val originalDevice: BleDeviceInfoTrans = scannedDevices[index]
+        // 1. Check if UUID is already there to avoid duplicates
+        if (originalDevice.bleServices.contains(uuid)) return
 
-            // 1. Create the new list of services safely
-            // Check if UUID is already there to avoid duplicates
-            if (originalDevice.bleServices.contains(uuid)) return
+        val updatedServices = originalDevice.bleServices + uuid
 
-            val updatedServices = originalDevice.bleServices + uuid
+        // 2. Create a COPY of the Trans object with the new list
+        val updatedDeviceTrans = originalDevice.copy(bleServices = updatedServices)
 
-            // 2. Create a COPY of the Trans object with the new list
-            val updatedDeviceTrans = originalDevice.copy(bleServices = updatedServices)
+        // 3. REPLACE the object in the source of truth map
+        scannedDevicesMap[address] = updatedDeviceTrans
 
-            // 3. REPLACE the object in the source of truth list
-            scannedDevices[index] = updatedDeviceTrans
+        // 4. Trigger the throttled UI update
+        uiUpdateTrigger.trySend(Unit)
 
-            // 4. Trigger the UI update
-            // We don't need to pass arguments anymore because scannedDevices is now updated
-            updateDevicesList()
-        }
     }
 
 }
