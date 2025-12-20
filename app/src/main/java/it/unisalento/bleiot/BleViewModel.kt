@@ -106,8 +106,18 @@ class BleViewModel : ViewModel() {
             },
             dataCallback = { data ->
                 updateData(data)
+            },
+            phyCallback = { address, phy ->
+                updateDevicePhy(address, phy)
             }
         )
+    }
+
+    private fun updateDevicePhy(address: String, phy: String) {
+        val originalDevice = scannedDevicesMap[address] ?: return
+        val updatedDevice = originalDevice.copy(phy = phy)
+        scannedDevicesMap[address] = updatedDevice
+        uiUpdateTrigger.trySend(Unit)
     }
 
     fun onScanClicked() {
@@ -348,7 +358,8 @@ class BleViewModel : ViewModel() {
                         BleDeviceInfo(
                             name = if (hasConnectPermission) deviceTrans.name else "Unknown Device",
                             address = deviceTrans.address,
-                            deviceT = deviceTrans
+                            deviceT = deviceTrans,
+                            phy = deviceTrans.phy
                         )
                     }
                 )
@@ -462,7 +473,8 @@ data class BleUiState(
 data class BleDeviceInfo(
     val name: String,
     val address: String,
-    val deviceT: BleDeviceInfoTrans
+    val deviceT: BleDeviceInfoTrans,
+    val phy: String = "Unknown"
 )
 
 data class BleDeviceInfoTrans(
@@ -470,5 +482,6 @@ data class BleDeviceInfoTrans(
     val address: String,
     val device: BluetoothDevice,
     var bleServices: List<String> = listOf<String>(),
-    var whiteboardServices: List<String> = listOf<String>()
+    var whiteboardServices: List<String> = listOf<String>(),
+    var phy: String = "Unknown"
 )
