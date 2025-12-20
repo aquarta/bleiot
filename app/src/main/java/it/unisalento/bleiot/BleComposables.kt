@@ -144,7 +144,8 @@ fun BleNotificationApp(
                             },
                             onDisconnectClick = {
                                 if (isConnected) onDisconnectClick(deviceInfo.address)
-                            }
+                            },
+                            phy = deviceInfo.phy
                         )
                     }
                 } else if (state.statusText.contains("Scanning")) {
@@ -243,7 +244,8 @@ fun DeviceListSection(
                     },
                     onDisconnectClick = {
                         if (isConnected) onDisconnectClick()
-                    }
+                    },
+                    phy = deviceInfo.phy
                 )
             }
         }
@@ -276,7 +278,8 @@ fun DeviceListItem(
     deviceT: BleDeviceInfoTrans,
     isConnected: Boolean,
     onClick: () -> Unit,
-    onDisconnectClick: () -> Unit
+    onDisconnectClick: () -> Unit,
+    phy: String
 ) {
     Card(
         modifier = Modifier
@@ -300,15 +303,27 @@ fun DeviceListItem(
                 )
 
                 if (isConnected) {
-                    Badge(
-                        modifier = Modifier.padding(end = 4.dp),
-                        containerColor = MaterialTheme.colorScheme.primary
-                    ) {
-                        Text(
-                            text = "Connected",
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            fontSize = 10.sp
-                        )
+                    Row {
+                        Badge(
+                            modifier = Modifier.padding(end = 4.dp),
+                            containerColor = MaterialTheme.colorScheme.primary
+                        ) {
+                            Text(
+                                text = "Connected",
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                fontSize = 10.sp
+                            )
+                        }
+                        Badge(
+                            modifier = Modifier.padding(end = 4.dp),
+                            containerColor = MaterialTheme.colorScheme.secondary
+                        ) {
+                            Text(
+                                text = phy,
+                                color = MaterialTheme.colorScheme.onSecondary,
+                                fontSize = 10.sp
+                            )
+                        }
                     }
                 }
             }

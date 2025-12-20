@@ -61,6 +61,7 @@ class BleAndMqttService : Service() {
     private val connectedDevices = mutableMapOf<String, BluetoothDevice>()
     private val movesenseConnectedDevices = mutableMapOf<String, String>()
     private val gattConnections = mutableMapOf<String, BluetoothGatt>()
+    private val devicePhy = mutableMapOf<String, String>()
 
     // Queue for descriptor operations per device
     private val descriptorWriteQueues = mutableMapOf<String, MutableList<BluetoothGattDescriptor>>()
@@ -79,6 +80,7 @@ class BleAndMqttService : Service() {
     // Status callback
     private var statusCallback: ((String) -> Unit)? = null
     private var dataCallback: ((String) -> Unit)? = null
+    private var phyCallback: ((String, String) -> Unit)? = null
 
     companion object {
         // ... existing constants
@@ -290,9 +292,14 @@ class BleAndMqttService : Service() {
         disconnectMqtt()
     }
 
-    fun setCallbacks(statusCallback: (String) -> Unit, dataCallback: (String) -> Unit) {
+    fun setCallbacks(statusCallback: (String) -> Unit, dataCallback: (String) -> Unit, phyCallback: (String, String) -> Unit) {
         this.statusCallback = statusCallback
         this.dataCallback = dataCallback
+        this.phyCallback = phyCallback
+    }
+
+    fun getDevicePhy(address: String): String? {
+        return devicePhy[address]
     }
 
     fun getConnectedDevices(): List<BluetoothDevice> {
@@ -528,6 +535,12 @@ class BleAndMqttService : Service() {
 
                     // Discover services
                     gatt.discoverServices()
+
+                    // Read PHY
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        gatt.readPhy()
+                    }
+
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     val deviceAddress = gatt.device.address
                     Log.i(TAG, "Disconnected from GATT server.")
@@ -543,6 +556,7 @@ class BleAndMqttService : Service() {
                     isWritingDescriptors.remove(deviceAddress)
                     characteristicWriteQueues.remove(deviceAddress)
                     isWritingCharacteristics.remove(deviceAddress)
+                    devicePhy.remove(deviceAddress)
 
                     // Update data only if this was the last connected device
                     if (connectedDevices.isEmpty()) {
@@ -562,9 +576,28 @@ class BleAndMqttService : Service() {
                 isWritingDescriptors.remove(deviceAddress)
                 characteristicWriteQueues.remove(deviceAddress)
                 isWritingCharacteristics.remove(deviceAddress)
+                devicePhy.remove(deviceAddress)
 
                 updateStatus("Disconnected from device ${gatt.device.name ?: "Unknown Device"} due to a connection error")
                 updateNotification("Disconnected from BLE device ${gatt.device.name ?: "Unknown Device"}")
+            }
+        }
+
+        override fun onPhyRead(gatt: BluetoothGatt, txPhy: Int, rxPhy: Int, status: Int) {
+            super.onPhyRead(gatt, txPhy, rxPhy, status)
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                val phy = "TX: ${phyToString(txPhy)}, RX: ${phyToString(rxPhy)}"
+                devicePhy[gatt.device.address] = phy
+                phyCallback?.invoke(gatt.device.address, phy)
+            }
+        }
+    
+        private fun phyToString(phy: Int): String {
+            return when (phy) {
+                BluetoothDevice.PHY_LE_1M -> "1M"
+                BluetoothDevice.PHY_LE_2M -> "2M"
+                BluetoothDevice.PHY_LE_CODED -> "Coded"
+                else -> "Unknown"
             }
         }
 
