@@ -31,7 +31,8 @@ fun MainScreenWithMenu(
     onScanButtonClick: () -> Unit,
     onDeviceClick: (BluetoothDevice) -> Unit,
     onDisconnectClick: (String) -> Unit,
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    viewModel: BleViewModel
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
@@ -71,7 +72,8 @@ fun MainScreenWithMenu(
             onScanButtonClick = onScanButtonClick,
             onDeviceClick = onDeviceClick,
             onDisconnectClick = onDisconnectClick,
-            modifier = Modifier.padding(paddingValues)
+            modifier = Modifier.padding(paddingValues),
+            viewModel = viewModel
         )
     }
 }
@@ -85,7 +87,8 @@ fun BleNotificationApp(
     onScanButtonClick: () -> Unit,
     onDeviceClick: (BluetoothDevice) -> Unit,
     onDisconnectClick: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    viewModel: BleViewModel
 ) {
     val state by uiState.collectAsState()
 
@@ -145,7 +148,11 @@ fun BleNotificationApp(
                             onDisconnectClick = {
                                 if (isConnected) onDisconnectClick(deviceInfo.address)
                             },
-                            phy = deviceInfo.phy
+                            phy = deviceInfo.phy,
+                            supportedPhy = deviceInfo.supportedPhy,
+                            onPhyClick = { txPhy, rxPhy, phyOptions ->
+                                viewModel.setPreferredPhy(deviceInfo.address, txPhy, rxPhy, phyOptions)
+                            }
                         )
                     }
                 } else if (state.statusText.contains("Scanning")) {
@@ -245,7 +252,12 @@ fun DeviceListSection(
                     onDisconnectClick = {
                         if (isConnected) onDisconnectClick()
                     },
-                    phy = deviceInfo.phy
+                    phy = deviceInfo.phy,
+                    supportedPhy = deviceInfo.supportedPhy,
+                    onPhyClick = { txPhy, rxPhy, phyOptions ->
+                        // The viewModel is not available in this scope.
+                        // This composable is not used, so this is just a placeholder.
+                    }
                 )
             }
         }
@@ -279,7 +291,9 @@ fun DeviceListItem(
     isConnected: Boolean,
     onClick: () -> Unit,
     onDisconnectClick: () -> Unit,
-    phy: String
+    phy: String,
+    supportedPhy: String,
+    onPhyClick: (Int, Int, Int) -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -359,28 +373,50 @@ fun DeviceListItem(
                 }
             }
             if (isConnected){
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
 
-                    CharListItem(
-                        charNames = deviceT.bleServices,
-                        deviceAddress = deviceAddress
-                    )
+                        CharListItem(
+                            charNames = deviceT.bleServices,
+                            deviceAddress = deviceAddress
+                        )
 
 
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Start,
-                    verticalAlignment = Alignment.Bottom
-                ) {
-                    WhiteBoardListItem(
-                        measureNames = deviceT.whiteboardServices,
-                        deviceAddress = deviceAddress
-                    )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Start,
+                        verticalAlignment = Alignment.Bottom
+                    ) {
+                        WhiteBoardListItem(
+                            measureNames = deviceT.whiteboardServices,
+                            deviceAddress = deviceAddress
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Start,
+                        verticalAlignment = Alignment.Bottom
+                    ) {
+                        supportedPhy.split(",").forEach { phy ->
+                            Button(
+                                onClick = {
+                                    when (phy.trim()) {
+                                        "1M" -> onPhyClick(BluetoothDevice.PHY_LE_1M_MASK, BluetoothDevice.PHY_LE_1M_MASK, 0)
+                                        "2M" -> onPhyClick(BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_LE_2M_MASK, 0)
+                                        "Coded" -> onPhyClick(BluetoothDevice.PHY_LE_CODED_MASK, BluetoothDevice.PHY_LE_CODED_MASK, 0)
+                                    }
+                                },
+                                modifier = Modifier.padding(end = 8.dp)
+                            ) {
+                                Text(text = phy)
+                            }
+                        }
+                    }
                 }
             }
         }

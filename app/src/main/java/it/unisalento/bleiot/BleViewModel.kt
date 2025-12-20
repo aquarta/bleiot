@@ -109,8 +109,22 @@ class BleViewModel : ViewModel() {
             },
             phyCallback = { address, phy ->
                 updateDevicePhy(address, phy)
+            },
+            supportedPhyCallback = { address, supportedPhy ->
+                updateDeviceSupportedPhy(address, supportedPhy)
             }
         )
+    }
+
+    fun setPreferredPhy(address: String, txPhy: Int, rxPhy: Int, phyOptions: Int) {
+        bleAndMqttService?.setPreferredPhy(address, txPhy, rxPhy, phyOptions)
+    }
+
+    private fun updateDeviceSupportedPhy(address: String, supportedPhy: String) {
+        val originalDevice = scannedDevicesMap[address] ?: return
+        val updatedDevice = originalDevice.copy(supportedPhy = supportedPhy)
+        scannedDevicesMap[address] = updatedDevice
+        uiUpdateTrigger.trySend(Unit)
     }
 
     private fun updateDevicePhy(address: String, phy: String) {
@@ -359,7 +373,8 @@ class BleViewModel : ViewModel() {
                             name = if (hasConnectPermission) deviceTrans.name else "Unknown Device",
                             address = deviceTrans.address,
                             deviceT = deviceTrans,
-                            phy = deviceTrans.phy
+                            phy = deviceTrans.phy,
+                            supportedPhy = deviceTrans.supportedPhy
                         )
                     }
                 )
@@ -474,7 +489,8 @@ data class BleDeviceInfo(
     val name: String,
     val address: String,
     val deviceT: BleDeviceInfoTrans,
-    val phy: String = "Unknown"
+    val phy: String = "Unknown",
+    val supportedPhy: String = "Unknown"
 )
 
 data class BleDeviceInfoTrans(
@@ -483,5 +499,6 @@ data class BleDeviceInfoTrans(
     val device: BluetoothDevice,
     var bleServices: List<String> = listOf<String>(),
     var whiteboardServices: List<String> = listOf<String>(),
-    var phy: String = "Unknown"
+    var phy: String = "Unknown",
+    var supportedPhy: String = "Unknown"
 )

@@ -80,7 +80,8 @@ class MainActivity : ComponentActivity() {
                     },
                     onSettingsClick = {
                         startActivity(Intent(this@MainActivity, SettingsActivity::class.java))
-                    }
+                    },
+                    viewModel = viewModel
                 )
             }
         }
