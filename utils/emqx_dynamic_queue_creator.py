@@ -132,23 +132,37 @@ def main():
                 action_desc = f"InfluxDB action for {device_name} - {measure.get('name')}"
                 print(measure)
                 if 'jsonPayloadParser' in measure:
-                    # 1. Construct InfluxDB write syntax from jsonPayloadParser
-                    fields = measure['jsonPayloadParser'].get('fields', [])
-                    
+                    # 1. Construct SELECT rule and InfluxDB write syntax from jsonPayloadParser
+                    parser_config = measure['jsonPayloadParser']
+                    fields = parser_config.get('fields', [])
+                    use_jq = parser_config.get('use_jq', False)
+
+                    select_parts = ["payload.deviceName as deviceName", "payload.gatewayName as gatewayName"]
                     influx_fields_parts = []
+
                     for field in fields:
                         field_name = field['name']
-                        field_path = field['path']
+                        field_path = field.get('path')
                         field_type = field.get('type', 'float')
 
+                        if use_jq:
+                            # Use first(jq(...)) syntax for complex JSON extraction
+                            select_parts.append(f"first(jq('.{field_path}', payload)) as {field_name}")
+                        else:
+                            # Original logic for direct payload access
+                            if field_path:
+                                select_parts.append(f"payload.{field_path} as {field_name}")
+                            else:
+                                select_parts.append(f"payload as {field_name}")
+
                         if field_type == 'integer':
-                            influx_fields_parts.append(f"{field_name}=${{payload.{field_path}}}i")
+                            influx_fields_parts.append(f"{field_name}=${{{field_name}}}i")
                         elif field_type == 'float':
-                            influx_fields_parts.append(f"{field_name}=${{payload.{field_path}}}")
-                        
+                            influx_fields_parts.append(f"{field_name}=${{{field_name}}}")
+
+                    sql = f"SELECT {', '.join(select_parts)} FROM \"{mqtt_topic}\""
                     influx_fields = ",".join(influx_fields_parts)
-                    write_syntax = f"{measure_name},deviceName=${{payload.deviceName}},gatewayName=${{payload.gatewayName}} {influx_fields}"
-                    sql = f"SELECT * FROM \"{mqtt_topic}\""
+                    write_syntax = f"{measure_name},deviceName=${{deviceName}},gatewayName=${{gatewayName}} {influx_fields}"
 
                     create_emqx_action(action_name, action_desc, write_syntax)
                     create_emqx_rule(rule_id, rule_name, rule_desc, sql, action_name)
