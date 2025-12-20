@@ -62,6 +62,7 @@ class BleAndMqttService : Service() {
     private val movesenseConnectedDevices = mutableMapOf<String, String>()
     private val gattConnections = mutableMapOf<String, BluetoothGatt>()
     private val devicePhy = mutableMapOf<String, String>()
+    private val supportedPhy = mutableMapOf<String, String>()
 
     // Queue for descriptor operations per device
     private val descriptorWriteQueues = mutableMapOf<String, MutableList<BluetoothGattDescriptor>>()
@@ -81,6 +82,7 @@ class BleAndMqttService : Service() {
     private var statusCallback: ((String) -> Unit)? = null
     private var dataCallback: ((String) -> Unit)? = null
     private var phyCallback: ((String, String) -> Unit)? = null
+    private var supportedPhyCallback: ((String, String) -> Unit)? = null
 
     companion object {
         // ... existing constants
@@ -292,10 +294,11 @@ class BleAndMqttService : Service() {
         disconnectMqtt()
     }
 
-    fun setCallbacks(statusCallback: (String) -> Unit, dataCallback: (String) -> Unit, phyCallback: (String, String) -> Unit) {
+    fun setCallbacks(statusCallback: (String) -> Unit, dataCallback: (String) -> Unit, phyCallback: (String, String) -> Unit, supportedPhyCallback: (String, String) -> Unit) {
         this.statusCallback = statusCallback
         this.dataCallback = dataCallback
         this.phyCallback = phyCallback
+        this.supportedPhyCallback = supportedPhyCallback
     }
 
     fun getDevicePhy(address: String): String? {
@@ -515,6 +518,27 @@ class BleAndMqttService : Service() {
         }
     }
 
+    fun setPreferredPhy(address: String, txPhy: Int, rxPhy: Int, phyOptions: Int) {
+        val gatt = gattConnections[address]
+        if (gatt != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (ActivityCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.BLUETOOTH_CONNECT
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                // TODO: Consider calling
+                //    ActivityCompat#requestPermissions
+                // here to request the missing permissions, and then overriding
+                //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+                //                                          int[] grantResults)
+                // to handle the case where the user grants the permission. See the documentation
+                // for ActivityCompat#requestPermissions for more details.
+                return
+            }
+            gatt.setPreferredPhy(txPhy, rxPhy, phyOptions)
+        }
+    }
+
     // GATT callback
     private val gattCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
@@ -540,6 +564,17 @@ class BleAndMqttService : Service() {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         gatt.readPhy()
                     }
+
+                    // Get supported PHYs
+                    var supported = "1M"
+                    if (bluetoothAdapter?.isLe2MPhySupported == true) {
+                        supported += ", 2M"
+                    }
+                    if (bluetoothAdapter?.isLeCodedPhySupported == true) {
+                        supported += ", Coded"
+                    }
+                    supportedPhy[gatt.device.address] = supported
+                    supportedPhyCallback?.invoke(gatt.device.address, supported)
 
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     val deviceAddress = gatt.device.address
@@ -580,6 +615,15 @@ class BleAndMqttService : Service() {
 
                 updateStatus("Disconnected from device ${gatt.device.name ?: "Unknown Device"} due to a connection error")
                 updateNotification("Disconnected from BLE device ${gatt.device.name ?: "Unknown Device"}")
+            }
+        }
+
+        override fun onPhyUpdate(gatt: BluetoothGatt, txPhy: Int, rxPhy: Int, status: Int) {
+            super.onPhyUpdate(gatt, txPhy, rxPhy, status)
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                val phy = "TX: ${phyToString(txPhy)}, RX: ${phyToString(rxPhy)}"
+                devicePhy[gatt.device.address] = phy
+                phyCallback?.invoke(gatt.device.address, phy)
             }
         }
 
