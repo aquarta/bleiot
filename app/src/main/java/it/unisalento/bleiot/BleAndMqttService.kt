@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.IBinder
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.util.Log
 import androidx.activity.result.launch
 import androidx.annotation.RequiresPermission
@@ -44,6 +45,9 @@ class BleAndMqttService : Service() {
     private val TAG = "BleAndMqttService"
     private val NOTIFICATION_ID = 1
     private val CHANNEL_ID = "ble_mqtt_service_channel"
+
+    // Wakelock
+    private var wakeLock: PowerManager.WakeLock? = null
 
     // MQTT properties
     private var mqttClient: MqttClient? = null
@@ -96,6 +100,11 @@ class BleAndMqttService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "BleIot::Wakelock")
+        wakeLock?.acquire()
+
         createNotificationChannel()
 
         // Initialize MQTT settings and device configuration
@@ -276,6 +285,7 @@ class BleAndMqttService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        wakeLock?.release()
         disconnectBle()
         disconnectMqtt()
     }
@@ -302,7 +312,7 @@ class BleAndMqttService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val name = "BLE MQTT Service"
             val descriptionText = "Maintains BLE and MQTT connections"
-            val importance = NotificationManager.IMPORTANCE_LOW
+            val importance = NotificationManager.IMPORTANCE_HIGH
             val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
                 description = descriptionText
             }
