@@ -586,8 +586,6 @@ class BleAndMqttService : Service() {
                     val deviceAddress = gatt.device.address
                     Log.i(TAG, "Disconnected from GATT server.")
                     Log.i(TAG, "Disconnected from device ${gatt.device.name ?: "Unknown Device"} ($deviceAddress)")
-                    updateStatus("Disconnected from device ${gatt.device.name ?: "Unknown Device"}")
-                    updateNotification("Disconnected from BLE device ${gatt.device.name ?: "Unknown Device"}")
 
                     // Clean up the specific GATT connection
                     gatt.close()
@@ -598,7 +596,7 @@ class BleAndMqttService : Service() {
                     characteristicWriteQueues.remove(deviceAddress)
                     isWritingCharacteristics.remove(deviceAddress)
                     devicePhy.remove(deviceAddress)
-
+                    updateNotification("Disconnected from BLE device ${gatt.device.name ?: "Unknown Device"}")
                     // Update data only if this was the last connected device
                     if (connectedDevices.isEmpty()) {
                         updateData("")
@@ -606,6 +604,7 @@ class BleAndMqttService : Service() {
                     if (gattConnections.isEmpty()) {
                         stopRssiUpdates()
                     }
+                    updateStatus("Disconnected from device ${gatt.device.name ?: "Unknown Device"}")
                 }
             } else {
                 val deviceAddress = gatt.device.address
@@ -919,6 +918,7 @@ class BleAndMqttService : Service() {
 
         Mds.builder().build(this@BleAndMqttService)
             .get("suunto://223430000418/component/leds", null, object : MdsResponseListener {
+                @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
                 override fun onSuccess(data: String) {
                     Log.d(
                         TAG,
