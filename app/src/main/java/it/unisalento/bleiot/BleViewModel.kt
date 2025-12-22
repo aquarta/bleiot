@@ -47,9 +47,6 @@ class BleViewModel : ViewModel() {
 
     // MQTT Client properties
     private var mqttClient: MqttClient? = null
-    private val MQTT_SERVER_URI = "tcp://vmi2211704.contaboserver.net:1883"
-    private val MQTT_CLIENT_ID = "AndroidBleClient"
-    private val MQTT_TOPIC = "ble/temperature"
 
     // UI State
     private val _uiState = MutableStateFlow(BleUiState())
