@@ -384,7 +384,8 @@ class BleViewModel : ViewModel() {
                             address = deviceTrans.address,
                             deviceT = deviceTrans,
                             phy = deviceTrans.phy,
-                            supportedPhy = deviceTrans.supportedPhy
+                            supportedPhy = deviceTrans.supportedPhy,
+                            rssi = deviceTrans.rssi
                         )
                     }
                 )
@@ -500,7 +501,8 @@ data class BleDeviceInfo(
     val address: String,
     val deviceT: BleDeviceInfoTrans,
     val phy: String = "Unknown",
-    val supportedPhy: String = "Unknown"
+    var supportedPhy: String = "Unknown",
+    val rssi: Int = 0
 )
 
 data class BleDeviceInfoTrans(
@@ -510,5 +512,7 @@ data class BleDeviceInfoTrans(
     var bleServices: List<String> = listOf<String>(),
     var whiteboardServices: List<String> = listOf<String>(),
     var phy: String = "Unknown",
-    var supportedPhy: String = "Unknown"
+    var supportedPhy: String = "Unknown",
+    var autoConnect: Boolean = false,
+    var rssi: Int = 0
 )

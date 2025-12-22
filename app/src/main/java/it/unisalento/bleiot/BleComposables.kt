@@ -152,7 +152,8 @@ fun BleNotificationApp(
                             supportedPhy = deviceInfo.supportedPhy,
                             onPhyClick = { txPhy, rxPhy, phyOptions ->
                                 viewModel.setPreferredPhy(deviceInfo.address, txPhy, rxPhy, phyOptions)
-                            }
+                            },
+                            rssi = deviceInfo.rssi
                         )
                     }
                 } else if (state.statusText.contains("Scanning")) {
