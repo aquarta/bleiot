@@ -112,8 +112,18 @@ class BleViewModel : ViewModel() {
             },
             supportedPhyCallback = { address, supportedPhy ->
                 updateDeviceSupportedPhy(address, supportedPhy)
+            },
+            rssiCallback = { address, rssi ->
+                updateDeviceRssi(address, rssi)
             }
         )
+    }
+
+    private fun updateDeviceRssi(address: String, rssi: Int) {
+        val originalDevice = scannedDevicesMap[address] ?: return
+        val updatedDevice = originalDevice.copy(rssi = rssi)
+        scannedDevicesMap[address] = updatedDevice
+        uiUpdateTrigger.trySend(Unit)
     }
 
     fun setPreferredPhy(address: String, txPhy: Int, rxPhy: Int, phyOptions: Int) {
