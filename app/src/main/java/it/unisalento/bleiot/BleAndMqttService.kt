@@ -63,6 +63,7 @@ class BleAndMqttService : Service() {
     private val gattConnections = mutableMapOf<String, BluetoothGatt>()
     private val devicePhy = mutableMapOf<String, String>()
     private val supportedPhy = mutableMapOf<String, String>()
+    private val deviceRssi = mutableMapOf<String, Int>()
 
     // Queue for descriptor operations per device
     private val descriptorWriteQueues = mutableMapOf<String, MutableList<BluetoothGattDescriptor>>()
@@ -83,6 +84,7 @@ class BleAndMqttService : Service() {
     private var dataCallback: ((String) -> Unit)? = null
     private var phyCallback: ((String, String) -> Unit)? = null
     private var supportedPhyCallback: ((String, String) -> Unit)? = null
+    private var rssiCallback: ((String, Int) -> Unit)? = null
 
     companion object {
         // ... existing constants
@@ -294,11 +296,12 @@ class BleAndMqttService : Service() {
         disconnectMqtt()
     }
 
-    fun setCallbacks(statusCallback: (String) -> Unit, dataCallback: (String) -> Unit, phyCallback: (String, String) -> Unit, supportedPhyCallback: (String, String) -> Unit) {
+    fun setCallbacks(statusCallback: (String) -> Unit, dataCallback: (String) -> Unit, phyCallback: (String, String) -> Unit, supportedPhyCallback: (String, String) -> Unit, rssiCallback: (String, Int) -> Unit) {
         this.statusCallback = statusCallback
         this.dataCallback = dataCallback
         this.phyCallback = phyCallback
         this.supportedPhyCallback = supportedPhyCallback
+        this.rssiCallback = rssiCallback
     }
 
     fun getDevicePhy(address: String): String? {
@@ -557,6 +560,9 @@ class BleAndMqttService : Service() {
                     updateStatus("Connected to ${gatt.device.name ?: "Unknown Device"}")
                     updateNotification("Connected to ${gatt.device.name ?: "Unknown Device"}")
 
+                    // Start RSSI updates
+                    startRssiUpdates()
+
                     // Discover services
                     gatt.discoverServices()
 
@@ -597,6 +603,9 @@ class BleAndMqttService : Service() {
                     if (connectedDevices.isEmpty()) {
                         updateData("")
                     }
+                    if (gattConnections.isEmpty()) {
+                        stopRssiUpdates()
+                    }
                 }
             } else {
                 val deviceAddress = gatt.device.address
@@ -635,6 +644,41 @@ class BleAndMqttService : Service() {
                 phyCallback?.invoke(gatt.device.address, phy)
             }
         }
+
+        override fun onReadRemoteRssi(gatt: BluetoothGatt, rssi: Int, status: Int) {
+            super.onReadRemoteRssi(gatt, rssi, status)
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                deviceRssi[gatt.device.address] = rssi
+                rssiCallback?.invoke(gatt.device.address, rssi)
+            }
+        }
+    private val rssiHandler = Handler(Looper.getMainLooper())
+    private val rssiRunnable = object : Runnable {
+        override fun run() {
+            if (ActivityCompat.checkSelfPermission(
+                    this@BleAndMqttService,
+                    Manifest.permission.BLUETOOTH_CONNECT
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                return
+            }
+            gattConnections.values.forEach { gatt ->
+                gatt.readRemoteRssi()
+            }
+            rssiHandler.postDelayed(this, 5000) // 5 seconds
+        }
+    }
+
+
+
+    private fun startRssiUpdates() {
+        rssiHandler.post(rssiRunnable)
+    }
+
+    private fun stopRssiUpdates() {
+        rssiHandler.removeCallbacks(rssiRunnable)
+    }
+
     
         private fun phyToString(phy: Int): String {
             return when (phy) {

@@ -257,7 +257,8 @@ fun DeviceListSection(
                     onPhyClick = { txPhy, rxPhy, phyOptions ->
                         // The viewModel is not available in this scope.
                         // This composable is not used, so this is just a placeholder.
-                    }
+                    },
+                    rssi = deviceInfo.rssi
                 )
             }
         }
@@ -293,7 +294,8 @@ fun DeviceListItem(
     onDisconnectClick: () -> Unit,
     phy: String,
     supportedPhy: String,
-    onPhyClick: (Int, Int, Int) -> Unit
+    onPhyClick: (Int, Int, Int) -> Unit,
+    rssi: Int
 ) {
     Card(
         modifier = Modifier
@@ -335,6 +337,14 @@ fun DeviceListItem(
                             Text(
                                 text = phy,
                                 color = MaterialTheme.colorScheme.onSecondary,
+                                fontSize = 10.sp
+                            )
+                        }
+                        Badge(
+                            modifier = Modifier.padding(end = 4.dp),
+                        ) {
+                            Text(
+                                text = "RSSI: $rssi",
                                 fontSize = 10.sp
                             )
                         }
