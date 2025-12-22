@@ -34,6 +34,7 @@ import org.eclipse.paho.client.mqttv3.*
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 import org.json.JSONException
 import org.json.JSONObject
+import org.json.JSONArray
 import java.util.*
 import kotlin.collections.set
 import kotlinx.coroutines.launch
@@ -232,6 +233,30 @@ class BleAndMqttService : Service() {
                             mutableData.put("gatewayName", bluetoothAdapter?.name ?: "Unknown")
 
                             mutableData.put("gatewayBattery", getBatteryLevel())
+                            if (mutableData.has("Body")) {
+                                val body = mutableData.getJSONObject("Body")
+                                if (body.has("Samples")) {
+                                    val samplesArray = body.getJSONArray("Samples")
+                                    val baseTimestamp = body.getLong("Timestamp")
+                                    val newSamplesArray = JSONArray()
+
+                                    for (i in 0 until samplesArray.length()) {
+                                        val sampleValue = samplesArray.getInt(i)
+                                        // Calculate specific timestamp: base + (8ms * index)
+                                        val calculatedTimestamp = baseTimestamp + (8 * i)
+
+                                        val sampleObj = JSONObject()
+                                        sampleObj.put("value", sampleValue)
+                                        sampleObj.put("stimestamp", calculatedTimestamp)
+
+                                        newSamplesArray.put(sampleObj)
+                                    }
+
+                                    // Replace the old simple array with the new object array
+                                    body.put("Samples", newSamplesArray)
+                                }
+                            }
+
                             publishToMqtt(whiteboardMeasure.mqttTopic, mutableData.toString())
 
                         } catch (e: JSONException) {
