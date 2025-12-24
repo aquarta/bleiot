@@ -202,7 +202,7 @@ devices:
             structParser:
               endianness: "LITTLE_ENDIAN"
               fields:
-                - name: "timestamp"
+                - name: "stimestamp"
                   type: "ushort"
                 - name: "battery_level"
                   type: "short"
@@ -267,7 +267,7 @@ devices:
             structParser: 
               endianness: "LITTLE_ENDIAN"
               fields:
-                - name: "timestamp"
+                - name: "stimestamp"
                   type: "ushort"
                 - name: "battery_level"
                   type: "short"
