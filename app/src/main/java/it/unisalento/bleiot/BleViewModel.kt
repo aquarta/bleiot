@@ -30,6 +30,7 @@ import org.eclipse.paho.client.mqttv3.*
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 import java.util.*
 import kotlinx.coroutines.flow.receiveAsFlow
+import it.unisalento.bleiot.BleCharacteristicInfo
 
 class BleViewModel : ViewModel() {
     private val TAG = "BleViewModel"
@@ -428,13 +429,15 @@ class BleViewModel : ViewModel() {
     private val characteristicReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == BleAndMqttService.ACTION_CHARACTERISTIC_FOUND) {
-            val address = intent.getStringExtra(BleAndMqttService.EXTRA_DEVICE_ADDRESS)
-            val uuid = intent.getStringExtra(BleAndMqttService.EXTRA_CHARACTERISTIC_NAME)
+                val address = intent.getStringExtra(BleAndMqttService.EXTRA_DEVICE_ADDRESS)
+                val uuid = intent.getStringExtra(BleAndMqttService.EXTRA_CHARACTERISTIC_NAME)
+                val properties = intent.getIntExtra(BleAndMqttService.EXTRA_CHARACTERISTIC_PROPERTIES, 0)
 
-            if (address != null && uuid != null) {
-                updateDeviceUuid(address, uuid)
+                if (address != null && uuid != null) {
+                    val characteristicInfo = BleCharacteristicInfo(uuid, properties)
+                    updateDeviceCharacteristic(address, characteristicInfo)
+                }
             }
-        }
         }
     }
 
@@ -452,18 +455,15 @@ class BleViewModel : ViewModel() {
     }
 
 
-
-
-
-    private fun updateDeviceUuid(address: String, uuid: String) {
+    private fun updateDeviceCharacteristic(address: String, characteristicInfo: BleCharacteristicInfo) {
         // Find the index of the device in your mutable list
         // Instant lookup using the HashMap
         val originalDevice = scannedDevicesMap[address] ?: return
 
         // 1. Check if UUID is already there to avoid duplicates
-        if (originalDevice.bleServices.contains(uuid)) return
+        if (originalDevice.bleServices.any { it.uuid == characteristicInfo.uuid }) return
 
-        val updatedServices = originalDevice.bleServices + uuid
+        val updatedServices = originalDevice.bleServices + characteristicInfo
 
         // 2. Create a COPY of the Trans object with the new list
         val updatedDeviceTrans = originalDevice.copy(bleServices = updatedServices)
@@ -506,7 +506,7 @@ data class BleDeviceInfoTrans(
     val name: String,
     val address: String,
     val device: BluetoothDevice,
-    var bleServices: List<String> = listOf<String>(),
+    var bleServices: List<BleCharacteristicInfo> = listOf<BleCharacteristicInfo>(),
     var whiteboardServices: List<String> = listOf<String>(),
     var phy: String = "Unknown",
     var supportedPhy: String = "Unknown",

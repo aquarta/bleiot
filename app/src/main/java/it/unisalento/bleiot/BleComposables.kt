@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import it.unisalento.bleiot.BleCharacteristicInfo
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -392,7 +393,7 @@ fun DeviceListItem(
                     ) {
 
                         CharListItem(
-                            charNames = deviceT.bleServices,
+                            charInfos = deviceT.bleServices,
                             deviceAddress = deviceAddress
                         )
 
@@ -437,39 +438,64 @@ fun DeviceListItem(
 
 @Composable
 fun CharListItem(
-    charNames: List<String>,
+    charInfos: List<BleCharacteristicInfo>,
     deviceAddress: String
 ) {
     val context = LocalContext.current
-    // 1. Use a Column to stack the rows vertically
     Column(
         modifier = Modifier.padding(start = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp), // Adds space between the service rows
+        verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.Start
     ) {
-        // 2. Iterate through the services
-        for (charName in charNames) {
-            // 3. Create a separate Button (or Row) for EACH service
-            Button(
-                onClick = {
-                        val intent = Intent(context, BleAndMqttService::class.java).apply {
-                        // Use the specific ACTION you added to the Service for enabling notify
-                        action = BleAndMqttService.ACTION_ENABLE_CHAR_NOTIFY
-                        putExtra(BleAndMqttService.EXTRA_DEVICE_ADDRESS, deviceAddress)
-                        putExtra(BleAndMqttService.EXTRA_CHARACTERISTIC_NAME, charName)
-                    }
-                    // Start the service with the intent created above
-                    context.startService(intent)
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                ),
-                modifier = Modifier.height(32.dp)
+        for (charInfo in charInfos) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = charName,
-                    fontSize = 12.sp
+                    text = charInfo.uuid, // Using uuid as the name for now
+                    fontSize = 12.sp,
+                    modifier = Modifier.weight(1f)
                 )
+
+                if (charInfo.canRead) {
+                    Button(
+                        onClick = { /* TODO: Implement Read action */ },
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Text("READ", fontSize = 10.sp)
+                    }
+                }
+
+                if (charInfo.canWrite) {
+                    Button(
+                        onClick = { /* TODO: Implement Write action */ },
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Text("WRITE", fontSize = 10.sp)
+                    }
+                }
+
+                if (charInfo.canNotify) {
+                    var isChecked by remember { mutableStateOf(charInfo.isNotifying) }
+
+                    Switch(
+                        checked = isChecked,
+                        onCheckedChange = { checked ->
+                            isChecked = checked
+                            val intent = Intent(context, BleAndMqttService::class.java).apply {
+                                action = if (checked) {
+                                    BleAndMqttService.ACTION_ENABLE_CHAR_NOTIFY
+                                } else {
+                                    BleAndMqttService.ACTION_DISABLE_CHAR_NOTIFY
+                                }
+                                putExtra(BleAndMqttService.EXTRA_DEVICE_ADDRESS, deviceAddress)
+                                putExtra(BleAndMqttService.EXTRA_CHARACTERISTIC_NAME, charInfo.uuid)
+                            }
+                            context.startService(intent)
+                        }
+                    )
+                }
             }
         }
     }
