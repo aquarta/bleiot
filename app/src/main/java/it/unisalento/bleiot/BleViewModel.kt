@@ -128,6 +128,10 @@ class BleViewModel : ViewModel() {
         bleAndMqttService?.setPreferredPhy(address, txPhy, rxPhy, phyOptions)
     }
 
+    fun requestConnectionPriority(address: String, priority: Int) {
+        bleAndMqttService?.requestConnectionPriority(address, priority)
+    }
+
     private fun updateDeviceSupportedPhy(address: String, supportedPhy: String) {
         val originalDevice = scannedDevicesMap[address] ?: return
         val updatedDevice = originalDevice.copy(supportedPhy = supportedPhy)

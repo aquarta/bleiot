@@ -604,6 +604,21 @@ class BleAndMqttService : Service() {
         }
     }
 
+    fun requestConnectionPriority(address: String, priority: Int) {
+        val gatt = gattConnections[address]
+        if (gatt != null) {
+            if (ActivityCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.BLUETOOTH_CONNECT
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                // TODO: Handle permission not granted
+                return
+            }
+            gatt.requestConnectionPriority(priority)
+        }
+    }
+
     // GATT callback
     private val gattCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
