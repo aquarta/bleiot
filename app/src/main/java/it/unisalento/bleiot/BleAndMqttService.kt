@@ -92,8 +92,10 @@ class BleAndMqttService : Service() {
         const val ACTION_CHARACTERISTIC_FOUND = "it.unisalento.bleiot.ACTION_CHARACTERISTIC_FOUND"
         const val ACTION_WHITEBOARD_FOUND = "it.unisalento.bleiot.ACTION_WHITEBOARD_FOUND"
         const val ACTION_ENABLE_CHAR_NOTIFY = "it.unisalento.bleiot.ACTION_ENABLE_CHAR_NOTIFY"
+        const val ACTION_DISABLE_CHAR_NOTIFY = "it.unisalento.bleiot.ACTION_DISABLE_CHAR_NOTIFY"
         const val EXTRA_DEVICE_ADDRESS = "it.unisalento.bleiot.EXTRA_DEVICE_ADDRESS"
         const val EXTRA_CHARACTERISTIC_NAME = "it.unisalento.bleiot.EXTRA_CHARACTERISTIC_NAME"
+        const val EXTRA_CHARACTERISTIC_PROPERTIES = "it.unisalento.bleiot.EXTRA_CHARACTERISTIC_PROPERTIES"
         const val EXTRA_WHITEBOARD = "it.unisalento.bleiot.EXTRA_WHITEBOARD"
         const val ACTION_ENABLE_WHITEBOARD_SUBSCRIBE = "it.unisalento.bleiot.ACTION_ENABLE_WHITEBOARD_SUBSCRIBE"
         const val EXTRA_WHITEBOARD_MEASURE = "it.unisalento.bleiot.EXTRA_WHITEBOARD_MEASURE"
@@ -155,6 +157,13 @@ class BleAndMqttService : Service() {
                     enableNotificationsForCharacteristic(address, charUuid)
                 }
             }
+            ACTION_DISABLE_CHAR_NOTIFY -> {
+                val address = intent.getStringExtra(EXTRA_DEVICE_ADDRESS)
+                val charUuid = intent.getStringExtra(EXTRA_CHARACTERISTIC_NAME)
+                if (address != null && charUuid != null) {
+                    disableNotificationsForCharacteristic(address, charUuid)
+                }
+            }
             ACTION_ENABLE_WHITEBOARD_SUBSCRIBE -> {
                 val address = intent.getStringExtra(EXTRA_DEVICE_ADDRESS)
                 val measureName = intent.getStringExtra(EXTRA_WHITEBOARD_MEASURE)
@@ -165,6 +174,34 @@ class BleAndMqttService : Service() {
         }
 
         return START_STICKY
+    }
+
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    private fun disableNotificationsForCharacteristic(address: String, charName: String) {
+        val gatt = gattConnections[address] ?: return
+        val characteristicInfo = deviceConfigManager.findConfChar(gatt.device.name, charName)
+        if(characteristicInfo == null) {
+            Log.w(TAG, "Characteristic $charName not found for $address $gatt.device.name)")
+            return
+        }
+        for (gattservice in gatt.services) {
+            for (characteristic in gattservice.characteristics) {
+                if (characteristic.uuid.toString() == characteristicInfo.uuid) {
+                    // Disable notifications
+                    if (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0) {
+                        gatt.setCharacteristicNotification(characteristic, false)
+                        val desc_uuid = UUID.fromString(CCCD)
+                        val descriptor = characteristic.getDescriptor(desc_uuid)
+                        if (descriptor != null) {
+                            descriptor.setValue(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE)
+                            queueDescriptorWrite(gatt.device.address, descriptor)
+                            Log.i(TAG, "Queued disable notifications for ${characteristicInfo.name}")
+                        }
+                    }
+                }
+            }
+        }
     }
 
 
@@ -484,7 +521,7 @@ class BleAndMqttService : Service() {
             device?.let {
                 // Check if already connected to this device
                 if (connectedDevices.containsKey(it.address)) {
-                    updateStatus("Already connected to ${it.name ?: "Unknown Device"}")
+                    updateStatus("Already connected to ${it.name ?: "Unknown Device"} ${it.address ?: "Unknown Address"}")
                     return
                 }
 
@@ -753,7 +790,8 @@ class BleAndMqttService : Service() {
                             val (serviceInfo, characteristicInfo) = configPair
                             val intent = Intent(ACTION_CHARACTERISTIC_FOUND).apply {
                                 putExtra(EXTRA_DEVICE_ADDRESS, gatt.device.address)
-                                putExtra(EXTRA_CHARACTERISTIC_NAME, characteristicInfo.name) // Assuming mUuid holds the UUID string
+                                putExtra(EXTRA_CHARACTERISTIC_NAME, characteristicInfo.name)
+                                putExtra(EXTRA_CHARACTERISTIC_PROPERTIES, characteristic.properties)
                             }
                             sendBroadcast(intent)
                             Log.i(TAG, "Found configured characteristic: ${characteristicInfo.name}")
