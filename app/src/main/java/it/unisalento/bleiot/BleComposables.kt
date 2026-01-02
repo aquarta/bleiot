@@ -1,6 +1,7 @@
 package it.unisalento.bleiot
 
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothGatt
 import android.content.Intent
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -154,6 +155,9 @@ fun BleNotificationApp(
                             onPhyClick = { txPhy, rxPhy, phyOptions ->
                                 viewModel.setPreferredPhy(deviceInfo.address, txPhy, rxPhy, phyOptions)
                             },
+                            onPriorityClick = { priority ->
+                                viewModel.requestConnectionPriority(deviceInfo.address, priority)
+                            },
                             rssi = deviceInfo.rssi
                         )
                     }
@@ -260,6 +264,9 @@ fun DeviceListSection(
                         // The viewModel is not available in this scope.
                         // This composable is not used, so this is just a placeholder.
                     },
+                    onPriorityClick = {
+                        // The viewModel is not available in this scope.
+                    },
                     rssi = deviceInfo.rssi
                 )
             }
@@ -297,6 +304,7 @@ fun DeviceListItem(
     phy: String,
     supportedPhy: String,
     onPhyClick: (Int, Int, Int) -> Unit,
+    onPriorityClick: (Int) -> Unit,
     rssi: Int
 ) {
     Card(
@@ -427,6 +435,21 @@ fun DeviceListItem(
                             ) {
                                 Text(text = phy)
                             }
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Start,
+                        verticalAlignment = Alignment.Bottom
+                    ) {
+                        Button(onClick = { onPriorityClick(BluetoothGatt.CONNECTION_PRIORITY_LOW_POWER) }) {
+                            Text("Low Power")
+                        }
+                        Button(onClick = { onPriorityClick(BluetoothGatt.CONNECTION_PRIORITY_BALANCED) }) {
+                            Text("Balanced")
+                        }
+                        Button(onClick = { onPriorityClick(BluetoothGatt.CONNECTION_PRIORITY_HIGH) }) {
+                            Text("High")
                         }
                     }
                 }
