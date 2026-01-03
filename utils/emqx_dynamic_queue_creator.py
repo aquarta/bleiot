@@ -5,6 +5,12 @@ from requests.auth import HTTPBasicAuth
 import re
 from dotenv import load_dotenv
 import os
+import logging
+
+logging.basicConfig(filename="emqx_config.log",level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Load environment variables from .env file
+
 
 load_dotenv()
 # --- Configuration ---
@@ -29,8 +35,35 @@ headers = {
     'Accept': 'application/json',
 }
 
-def create_emqx_action(action_name, description, influx_write_syntax):
+
+def get_emqx_list_actions():
+    list_url = f"{base_url}/api/v5/actions"
+    list_response = requests.get(list_url, auth=auth, headers=headers)
+    logging.info(f"--- Current Configured actions ---")
+    logging.info(f"Status Code: {list_response.status_code}")
+    logging.info(f"Response: {list_response.text}\n")
+    for action in list_response.json():
+        
+        logging.info(f"--- Action {action['name']} ---")
+    return list_response.json()
+
+def get_emqx_action():
+    list_url = f"{base_url}/api/v5/actions"
+    list_response = requests.get(list_url, auth=auth, headers=headers)
+    logging.info(f"--- Current Configured actions ---")
+    logging.info(f"Status Code: {list_response.status_code}")
+    logging.info(f"Response: {list_response.text}\n")
+    for action in list_response.json():
+        
+        logging.info(f"--- Action {action['name']} ---")
+        logging.info(f"--- Action {action['name']} ---")
+    return list_response.json()
+
+def create_emqx_action(action_name, description, influx_write_syntax, current_actions = None):
     """Creates an InfluxDB action in EMQX."""
+    if current_actions is None:
+        current_actions = []
+
     url = f"{base_url}/api/v5/actions"
     payload = {
         "connector": "Influx1",  # Assuming your connector is named Influx1
@@ -46,10 +79,22 @@ def create_emqx_action(action_name, description, influx_write_syntax):
         },
         "type": "influxdb"
     }
-    response = requests.post(url, auth=auth, headers=headers, data=json.dumps(payload))
-    print(f"--- Creating Action: {action_name} ---")
-    print(f"Status Code: {response.status_code}")
-    print(f"Response: {response.text}\n")
+    action_found = any([action for action in current_actions if action['name'] == action_name])
+    
+    if action_found:
+        payload["created_at"] = [action["created_at"] for action in current_actions if action['name'] == action_name][0]
+        payload["last_modified_at"] = [action["last_modified_at"] for action in current_actions if action['name'] == action_name][0]
+        update_url = url+"/"+"influxdb:"+action_name
+        _ = payload.pop("name")
+        _ = payload.pop("type")
+
+        response = requests.put(update_url, auth=auth, headers=headers, data=json.dumps(payload))        
+        logging.info(f"--- Updating Action: {action_name} --> {update_url} {json.dumps(payload)}---")
+    else:
+        response = requests.post(url, auth=auth, headers=headers, data=json.dumps(payload))
+        logging.info(f"--- Creating Action: {action_name} ---")
+    logging.info(f"Status Code: {response.status_code}")
+    logging.info(f"Response: {response.text}\n")
     return response.ok
 
 def create_emqx_rule(rule_id, rule_name, description, sql, action_name):
@@ -83,6 +128,7 @@ def main():
     except yaml.YAMLError as e:
         print(f"Error parsing YAML file: {e}")
         return
+    action_list = get_emqx_list_actions()
 
     for device_name, device in config.get('devices', {}).items():
         device_short_name = device.get('shortName', '').lower()
@@ -99,14 +145,19 @@ def main():
                     # 1. Construct InfluxDB write syntax
                     measure_name = f"{device_short_name}_{char_name_cleaned}"
                     fields = char['structParser'].get('fields', [])
+                    fixed_fields = [
+                        {"name":"gatewayBattery"},
+                        {"name":"rssi"},
+                    ]
+                    fields += fixed_fields
                     influx_fields = ",".join([f"{field['name']}=${{payload.{field['name']}}}i" for field in fields])
-                    write_syntax = f"{measure_name},deviceName=${{payload.deviceName}},gatewayName=${{payload.gatewayName}} {influx_fields}"
+                    write_syntax = f"{measure_name},appTagName=${{payload.APP_TAG_NAME}},deviceAddress=${{payload.deviceAddress}},deviceAddress=${{payload.deviceAddress}},deviceName=${{payload.deviceName}},gatewayName=${{payload.gatewayName}} {influx_fields}"
                     sql = f"SELECT * FROM \"{mqtt_topic}\""
 
                     # 2. Create Action
                     action_name = f"action_{measure_name}"
                     action_desc = f"InfluxDB action for {device_name} - {char.get('name')}"
-                    create_emqx_action(action_name, action_desc, write_syntax)
+                    create_emqx_action(action_name, action_desc, write_syntax, action_list)
 
                     # 3. Create Rule
                     rule_name = f"rule_{measure_name}"
@@ -135,11 +186,15 @@ def main():
                     # 1. Construct SELECT rule and InfluxDB write syntax from jsonPayloadParser
                     parser_config = measure['jsonPayloadParser']
                     fields = parser_config.get('fields', [])
+                    fixed_fields = [
+                        {"name":"gatewayBattery", "type":"integer"},
+                    ]
+                    fields += fixed_fields
                     use_jq = parser_config.get('use_jq', False)
 
                     select_parts = ["payload.deviceName as deviceName", "payload.gatewayName as gatewayName"]
                     influx_fields_parts = []
-
+                    
                     for field in fields:
                         field_name = field['name']
                         field_path = field.get('path')
@@ -197,4 +252,5 @@ def main():
 
                     create_emqx_action(action_name, action_desc, write_syntax)
                     create_emqx_rule(rule_id, rule_name, rule_desc, sql, action_name)
+
 main()
