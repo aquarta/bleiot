@@ -132,6 +132,14 @@ class BleViewModel : ViewModel() {
         bleAndMqttService?.requestConnectionPriority(address, priority)
     }
 
+    fun setAppTagName(address: String, tagName: String) {
+        val originalDevice = scannedDevicesMap[address] ?: return
+        val updatedDevice = originalDevice.copy(appTagName = tagName)
+        scannedDevicesMap[address] = updatedDevice
+        bleAndMqttService?.setAppTagName(address, tagName)
+        uiUpdateTrigger.trySend(Unit)
+    }
+
     private fun updateDeviceSupportedPhy(address: String, supportedPhy: String) {
         val originalDevice = scannedDevicesMap[address] ?: return
         val updatedDevice = originalDevice.copy(supportedPhy = supportedPhy)
@@ -515,5 +523,6 @@ data class BleDeviceInfoTrans(
     var phy: String = "Unknown",
     var supportedPhy: String = "Unknown",
     var autoConnect: Boolean = false,
-    var rssi: Int = 0
+    var rssi: Int = 0,
+    var appTagName: String = ""
 )

@@ -65,6 +65,7 @@ class BleAndMqttService : Service() {
     private val devicePhy = mutableMapOf<String, String>()
     private val supportedPhy = mutableMapOf<String, String>()
     private val deviceRssi = mutableMapOf<String, Int>()
+    private val appTagNames = mutableMapOf<String, String>()
 
     // Queue for descriptor operations per device
     private val descriptorWriteQueues = mutableMapOf<String, MutableList<BluetoothGattDescriptor>>()
@@ -364,6 +365,10 @@ class BleAndMqttService : Service() {
         this.phyCallback = phyCallback
         this.supportedPhyCallback = supportedPhyCallback
         this.rssiCallback = rssiCallback
+    }
+
+    fun setAppTagName(address: String, tagName: String) {
+        appTagNames[address] = tagName
     }
 
     fun getDevicePhy(address: String): String? {
@@ -1051,6 +1056,9 @@ class BleAndMqttService : Service() {
                         mutableData["deviceAddress"] = gatt.device.address ?: "Unknown"
                         mutableData["gatewayName"] = bluetoothAdapter?.name ?: "Unknown"
                         mutableData["gatewayBattery"] = getBatteryLevel()
+                        appTagNames[gatt.device.address]?.let {
+                            mutableData["APP_TAG_NAME"] = it
+                        }
 
 
                         mutableData
