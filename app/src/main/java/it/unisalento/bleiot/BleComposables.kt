@@ -158,6 +158,9 @@ fun BleNotificationApp(
                             onPriorityClick = { priority ->
                                 viewModel.requestConnectionPriority(deviceInfo.address, priority)
                             },
+                            onTagNameChange = { tagName ->
+                                viewModel.setAppTagName(deviceInfo.address, tagName)
+                            },
                             rssi = deviceInfo.rssi
                         )
                     }
@@ -267,6 +270,9 @@ fun DeviceListSection(
                     onPriorityClick = {
                         // The viewModel is not available in this scope.
                     },
+                    onTagNameChange = {
+                        // The viewModel is not available in this scope.
+                    },
                     rssi = deviceInfo.rssi
                 )
             }
@@ -293,6 +299,7 @@ fun DeviceListSection(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeviceListItem(
     deviceName: String,
@@ -305,6 +312,7 @@ fun DeviceListItem(
     supportedPhy: String,
     onPhyClick: (Int, Int, Int) -> Unit,
     onPriorityClick: (Int) -> Unit,
+    onTagNameChange: (String) -> Unit,
     rssi: Int
 ) {
     Card(
@@ -394,6 +402,13 @@ fun DeviceListItem(
             }
             if (isConnected){
                 Column {
+                    TextField(
+                        value = deviceT.appTagName,
+                        onValueChange = { onTagNameChange(it) },
+                        label = { Text("APP_TAG_NAME") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
