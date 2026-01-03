@@ -511,7 +511,14 @@ fun CharListItem(
 
                 if (charInfo.canRead) {
                     Button(
-                        onClick = { /* TODO: Implement Read action */ },
+                        onClick = {
+                            val intent = Intent(context, BleAndMqttService::class.java).apply {
+                                action = BleAndMqttService.ACTION_READ_CHAR
+                                putExtra(BleAndMqttService.EXTRA_DEVICE_ADDRESS, deviceAddress)
+                                putExtra(BleAndMqttService.EXTRA_CHARACTERISTIC_NAME, charInfo.uuid)
+                            }
+                            context.startService(intent)
+                        },
                         modifier = Modifier.height(32.dp)
                     ) {
                         Text("READ", fontSize = 10.sp)
@@ -519,8 +526,23 @@ fun CharListItem(
                 }
 
                 if (charInfo.canWrite) {
+                    var textToWrite by remember { mutableStateOf("") }
+                    TextField(
+                        value = textToWrite,
+                        onValueChange = { textToWrite = it },
+                        label = { Text("Value to Write") },
+                        modifier = Modifier.height(50.dp)
+                    )
                     Button(
-                        onClick = { /* TODO: Implement Write action */ },
+                        onClick = {
+                            val intent = Intent(context, BleAndMqttService::class.java).apply {
+                                action = BleAndMqttService.ACTION_WRITE_CHAR
+                                putExtra(BleAndMqttService.EXTRA_DEVICE_ADDRESS, deviceAddress)
+                                putExtra(BleAndMqttService.EXTRA_CHARACTERISTIC_NAME, charInfo.uuid)
+                                putExtra("EXTRA_CHARACTERISTIC_VALUE", textToWrite)
+                            }
+                            context.startService(intent)
+                        },
                         modifier = Modifier.height(32.dp)
                     ) {
                         Text("WRITE", fontSize = 10.sp)

@@ -100,6 +100,9 @@ class BleAndMqttService : Service() {
         const val EXTRA_WHITEBOARD = "it.unisalento.bleiot.EXTRA_WHITEBOARD"
         const val ACTION_ENABLE_WHITEBOARD_SUBSCRIBE = "it.unisalento.bleiot.ACTION_ENABLE_WHITEBOARD_SUBSCRIBE"
         const val EXTRA_WHITEBOARD_MEASURE = "it.unisalento.bleiot.EXTRA_WHITEBOARD_MEASURE"
+        const val ACTION_READ_CHAR = "it.unisalento.bleiot.ACTION_READ_CHAR"
+        const val ACTION_WRITE_CHAR = "it.unisalento.bleiot.ACTION_WRITE_CHAR"
+        const val EXTRA_CHARACTERISTIC_VALUE = "it.unisalento.bleiot.EXTRA_CHARACTERISTIC_VALUE"
 
     }
 
@@ -165,6 +168,21 @@ class BleAndMqttService : Service() {
                     disableNotificationsForCharacteristic(address, charUuid)
                 }
             }
+            ACTION_READ_CHAR -> {
+                val address = intent.getStringExtra(EXTRA_DEVICE_ADDRESS)
+                val charUuid = intent.getStringExtra(EXTRA_CHARACTERISTIC_NAME)
+                if (address != null && charUuid != null) {
+                    readCharacteristic(address, charUuid)
+                }
+            }
+            ACTION_WRITE_CHAR -> {
+                val address = intent.getStringExtra(EXTRA_DEVICE_ADDRESS)
+                val charUuid = intent.getStringExtra(EXTRA_CHARACTERISTIC_NAME)
+                val value = intent.getStringExtra(EXTRA_CHARACTERISTIC_VALUE)
+                if (address != null && charUuid != null && value != null) {
+                    writeCharacteristic(address, charUuid, value)
+                }
+            }
             ACTION_ENABLE_WHITEBOARD_SUBSCRIBE -> {
                 val address = intent.getStringExtra(EXTRA_DEVICE_ADDRESS)
                 val measureName = intent.getStringExtra(EXTRA_WHITEBOARD_MEASURE)
@@ -177,6 +195,44 @@ class BleAndMqttService : Service() {
         return START_STICKY
     }
 
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    private fun readCharacteristic(address: String, charName: String) {
+        val gatt = gattConnections[address] ?: return
+        val characteristicInfo = deviceConfigManager.findConfChar(gatt.device.name, charName)
+        if (characteristicInfo == null) {
+            Log.w(TAG, "Characteristic $charName not found for $address $gatt.device.name)")
+            return
+        }
+        for (gattservice in gatt.services) {
+            for (characteristic in gattservice.characteristics) {
+                if (characteristic.uuid.toString() == characteristicInfo.uuid) {
+                    val res = gatt.readCharacteristic(characteristic)
+                    if (!res){
+                        Log.e(TAG, "Error reading ${characteristicInfo.name}")
+                    }
+                }
+            }
+        }
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    private fun writeCharacteristic(address: String, charName: String, value: String) {
+        val gatt = gattConnections[address] ?: return
+        val characteristicInfo = deviceConfigManager.findConfChar(gatt.device.name, charName)
+        if (characteristicInfo == null) {
+            Log.w(TAG, "Characteristic $charName not found for $address $gatt.device.name)")
+            return
+        }
+        for (gattservice in gatt.services) {
+            for (characteristic in gattservice.characteristics) {
+                if (characteristic.uuid.toString() == characteristicInfo.uuid) {
+                    characteristic.setValue(value)
+                    queueCharacteristicWrite(address, characteristic, value.toByteArray())
+                }
+            }
+        }
+    }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     private fun disableNotificationsForCharacteristic(address: String, charName: String) {
@@ -735,6 +791,17 @@ class BleAndMqttService : Service() {
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 deviceRssi[gatt.device.address] = rssi
                 rssiCallback?.invoke(gatt.device.address, rssi)
+            }
+        }
+
+        override fun onCharacteristicRead(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            value: ByteArray,
+            status: Int
+        ) {
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                handleCharacteristicChanged(gatt, characteristic, value)
             }
         }
     private val rssiHandler = Handler(Looper.getMainLooper())
