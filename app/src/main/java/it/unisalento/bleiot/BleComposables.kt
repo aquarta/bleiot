@@ -150,7 +150,8 @@ fun BleNotificationApp(
                             onDisconnectClick = {
                                 if (isConnected) onDisconnectClick(deviceInfo.address)
                             },
-                            phy = deviceInfo.phy,
+                            txPhy = deviceInfo.txPhy,
+                            rxPhy = deviceInfo.rxPhy,
                             supportedPhy = deviceInfo.supportedPhy,
                             onPhyClick = { txPhy, rxPhy, phyOptions ->
                                 viewModel.setPreferredPhy(deviceInfo.address, txPhy, rxPhy, phyOptions)
@@ -261,7 +262,8 @@ fun DeviceListSection(
                     onDisconnectClick = {
                         if (isConnected) onDisconnectClick()
                     },
-                    phy = deviceInfo.phy,
+                    txPhy = deviceInfo.txPhy,
+                    rxPhy = deviceInfo.rxPhy,
                     supportedPhy = deviceInfo.supportedPhy,
                     onPhyClick = { txPhy, rxPhy, phyOptions ->
                         // The viewModel is not available in this scope.
@@ -308,7 +310,8 @@ fun DeviceListItem(
     isConnected: Boolean,
     onClick: () -> Unit,
     onDisconnectClick: () -> Unit,
-    phy: String,
+    txPhy: String,
+    rxPhy: String,
     supportedPhy: String,
     onPhyClick: (Int, Int, Int) -> Unit,
     onPriorityClick: (Int) -> Unit,
@@ -353,7 +356,17 @@ fun DeviceListItem(
                             containerColor = MaterialTheme.colorScheme.secondary
                         ) {
                             Text(
-                                text = phy,
+                                text = "TX: $txPhy",
+                                color = MaterialTheme.colorScheme.onSecondary,
+                                fontSize = 10.sp
+                            )
+                        }
+                        Badge(
+                            modifier = Modifier.padding(end = 4.dp),
+                            containerColor = MaterialTheme.colorScheme.secondary
+                        ) {
+                            Text(
+                                text = "RX: $rxPhy",
                                 color = MaterialTheme.colorScheme.onSecondary,
                                 fontSize = 10.sp
                             )

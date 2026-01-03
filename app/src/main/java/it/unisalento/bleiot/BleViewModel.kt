@@ -105,8 +105,8 @@ class BleViewModel : ViewModel() {
             dataCallback = { data ->
                 updateData(data)
             },
-            phyCallback = { address, phy ->
-                updateDevicePhy(address, phy)
+            phyCallback = { address, txPhy, rxPhy ->
+                updateDevicePhy(address, txPhy, rxPhy)
             },
             supportedPhyCallback = { address, supportedPhy ->
                 updateDeviceSupportedPhy(address, supportedPhy)
@@ -147,11 +147,20 @@ class BleViewModel : ViewModel() {
         uiUpdateTrigger.trySend(Unit)
     }
 
-    private fun updateDevicePhy(address: String, phy: String) {
+    private fun updateDevicePhy(address: String, txPhy: Int, rxPhy: Int) {
         val originalDevice = scannedDevicesMap[address] ?: return
-        val updatedDevice = originalDevice.copy(phy = phy)
+        val updatedDevice = originalDevice.copy(txPhy = phyToString(txPhy), rxPhy = phyToString(rxPhy))
         scannedDevicesMap[address] = updatedDevice
         uiUpdateTrigger.trySend(Unit)
+    }
+
+    public fun phyToString(phy: Int): String {
+        return when (phy) {
+            BluetoothDevice.PHY_LE_1M -> "1M"
+            BluetoothDevice.PHY_LE_2M -> "2M"
+            BluetoothDevice.PHY_LE_CODED -> "Coded"
+            else -> "Unknown"
+        }
     }
 
     fun onScanClicked() {
@@ -393,7 +402,8 @@ class BleViewModel : ViewModel() {
                             name = if (hasConnectPermission) deviceTrans.name else "Unknown Device",
                             address = deviceTrans.address,
                             deviceT = deviceTrans,
-                            phy = deviceTrans.phy,
+                            txPhy = deviceTrans.txPhy,
+                            rxPhy = deviceTrans.rxPhy,
                             supportedPhy = deviceTrans.supportedPhy,
                             rssi = deviceTrans.rssi
                         )
@@ -509,7 +519,8 @@ data class BleDeviceInfo(
     val name: String,
     val address: String,
     val deviceT: BleDeviceInfoTrans,
-    val phy: String = "Unknown",
+    val txPhy: String = "Unknown",
+    val rxPhy: String = "Unknown",
     var supportedPhy: String = "Unknown",
     val rssi: Int = 0
 )
@@ -520,7 +531,8 @@ data class BleDeviceInfoTrans(
     val device: BluetoothDevice,
     var bleServices: List<BleCharacteristicInfo> = listOf<BleCharacteristicInfo>(),
     var whiteboardServices: List<String> = listOf<String>(),
-    var phy: String = "Unknown",
+    var txPhy: String = "Unknown",
+    var rxPhy: String = "Unknown",
     var supportedPhy: String = "Unknown",
     var autoConnect: Boolean = false,
     var rssi: Int = 0,

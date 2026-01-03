@@ -62,7 +62,7 @@ class BleAndMqttService : Service() {
     private val connectedDevices = mutableMapOf<String, BluetoothDevice>()
     private val movesenseConnectedDevices = mutableMapOf<String, String>()
     private val gattConnections = mutableMapOf<String, BluetoothGatt>()
-    private val devicePhy = mutableMapOf<String, String>()
+    private val devicePhys = mutableMapOf<String, Pair<Int, Int>>()
     private val supportedPhy = mutableMapOf<String, String>()
     private val deviceRssi = mutableMapOf<String, Int>()
     private val appTagNames = mutableMapOf<String, String>()
@@ -84,7 +84,7 @@ class BleAndMqttService : Service() {
     // Status callback
     private var statusCallback: ((String) -> Unit)? = null
     private var dataCallback: ((String) -> Unit)? = null
-    private var phyCallback: ((String, String) -> Unit)? = null
+    private var phyCallback: ((String, Int, Int) -> Unit)? = null
     private var supportedPhyCallback: ((String, String) -> Unit)? = null
     private var rssiCallback: ((String, Int) -> Unit)? = null
 
@@ -359,7 +359,7 @@ class BleAndMqttService : Service() {
         disconnectMqtt()
     }
 
-    fun setCallbacks(statusCallback: (String) -> Unit, dataCallback: (String) -> Unit, phyCallback: (String, String) -> Unit, supportedPhyCallback: (String, String) -> Unit, rssiCallback: (String, Int) -> Unit) {
+    fun setCallbacks(statusCallback: (String) -> Unit, dataCallback: (String) -> Unit, phyCallback: (String, Int, Int) -> Unit, supportedPhyCallback: (String, String) -> Unit, rssiCallback: (String, Int) -> Unit) {
         this.statusCallback = statusCallback
         this.dataCallback = dataCallback
         this.phyCallback = phyCallback
@@ -371,9 +371,6 @@ class BleAndMqttService : Service() {
         appTagNames[address] = tagName
     }
 
-    fun getDevicePhy(address: String): String? {
-        return devicePhy[address]
-    }
 
     fun getConnectedDevices(): List<BluetoothDevice> {
         return connectedDevices.values.toList()
@@ -588,6 +585,15 @@ class BleAndMqttService : Service() {
         }
     }
 
+    public fun phyToString(phy: Int): String {
+        return when (phy) {
+            BluetoothDevice.PHY_LE_1M -> "1M"
+            BluetoothDevice.PHY_LE_2M -> "2M"
+            BluetoothDevice.PHY_LE_CODED -> "Coded"
+            else -> "Unknown"
+        }
+    }
+
     fun setPreferredPhy(address: String, txPhy: Int, rxPhy: Int, phyOptions: Int) {
         val gatt = gattConnections[address]
         if (gatt != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -677,7 +683,7 @@ class BleAndMqttService : Service() {
                     isWritingDescriptors.remove(deviceAddress)
                     characteristicWriteQueues.remove(deviceAddress)
                     isWritingCharacteristics.remove(deviceAddress)
-                    devicePhy.remove(deviceAddress)
+                    devicePhys.remove(deviceAddress)
                     updateNotification("Disconnected from BLE device ${gatt.device.name ?: "Unknown Device"}")
                     // Update data only if this was the last connected device
                     if (connectedDevices.isEmpty()) {
@@ -701,7 +707,7 @@ class BleAndMqttService : Service() {
                 isWritingDescriptors.remove(deviceAddress)
                 characteristicWriteQueues.remove(deviceAddress)
                 isWritingCharacteristics.remove(deviceAddress)
-                devicePhy.remove(deviceAddress)
+                devicePhys.remove(deviceAddress)
 
                 updateStatus("Disconnected from device ${gatt.device.name ?: "Unknown Device"} due to a connection error")
                 updateNotification("Disconnected from BLE device ${gatt.device.name ?: "Unknown Device"}")
@@ -711,18 +717,16 @@ class BleAndMqttService : Service() {
         override fun onPhyUpdate(gatt: BluetoothGatt, txPhy: Int, rxPhy: Int, status: Int) {
             super.onPhyUpdate(gatt, txPhy, rxPhy, status)
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                val phy = "TX: ${phyToString(txPhy)}, RX: ${phyToString(rxPhy)}"
-                devicePhy[gatt.device.address] = phy
-                phyCallback?.invoke(gatt.device.address, phy)
+                devicePhys[gatt.device.address] = Pair(txPhy, rxPhy)
+                phyCallback?.invoke(gatt.device.address, txPhy, rxPhy)
             }
         }
 
         override fun onPhyRead(gatt: BluetoothGatt, txPhy: Int, rxPhy: Int, status: Int) {
             super.onPhyRead(gatt, txPhy, rxPhy, status)
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                val phy = "TX: ${phyToString(txPhy)}, RX: ${phyToString(rxPhy)}"
-                devicePhy[gatt.device.address] = phy
-                phyCallback?.invoke(gatt.device.address, phy)
+                devicePhys[gatt.device.address] = Pair(txPhy, rxPhy)
+                phyCallback?.invoke(gatt.device.address, txPhy, rxPhy)
             }
         }
 
@@ -761,7 +765,8 @@ class BleAndMqttService : Service() {
     }
 
     
-        private fun phyToString(phy: Int): String {
+        // Utility function to convert PHY integer constants to strings
+    private fun phyToString(phy: Int): String {
             return when (phy) {
                 BluetoothDevice.PHY_LE_1M -> "1M"
                 BluetoothDevice.PHY_LE_2M -> "2M"
@@ -1056,8 +1061,15 @@ class BleAndMqttService : Service() {
                         mutableData["deviceAddress"] = gatt.device.address ?: "Unknown"
                         mutableData["gatewayName"] = bluetoothAdapter?.name ?: "Unknown"
                         mutableData["gatewayBattery"] = getBatteryLevel()
+                        deviceRssi[gatt.device.address]?.let {
+                            mutableData["rssi"] = it
+                        }
                         appTagNames[gatt.device.address]?.let {
                             mutableData["APP_TAG_NAME"] = it
+                        }
+                        devicePhys[gatt.device.address]?.let {
+                            mutableData["tx_phy"] = phyToString(it.first)
+                            mutableData["rx_phy"] = phyToString(it.second)
                         }
 
 
