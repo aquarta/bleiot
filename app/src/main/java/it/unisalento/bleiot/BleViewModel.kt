@@ -345,7 +345,7 @@ class BleViewModel : ViewModel() {
                 }
 
                 updateStatus("Disconnecting from device $deviceAddress")
-            } else {
+            } else {_uiState
                 updateStatus("Service not bound, cannot disconnect")
             }
         }
@@ -414,8 +414,7 @@ class BleViewModel : ViewModel() {
     }
 
 
-    override fun onCleared() {
-        super.onCleared()
+    override fun onCleared() {        super.onCleared()
         stopScan()
         mqttClient?.disconnect()
         mqttClient?.close()
