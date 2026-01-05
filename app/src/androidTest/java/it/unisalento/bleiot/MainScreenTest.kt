@@ -12,6 +12,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import androidx.test.rule.GrantPermissionRule
 import android.Manifest
+import android.os.Build
 
 @RunWith(AndroidJUnit4::class)
 class MainScreenTest {
@@ -20,10 +21,16 @@ class MainScreenTest {
     val composeTestRule = createComposeRule()
 
     @get:Rule
-    val grantPermissionRule: GrantPermissionRule = GrantPermissionRule.grant(
-        Manifest.permission.BLUETOOTH_SCAN,
-        Manifest.permission.BLUETOOTH_CONNECT
-    )
+    val grantPermissionRule: GrantPermissionRule = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        GrantPermissionRule.grant(
+            Manifest.permission.BLUETOOTH_SCAN,
+            Manifest.permission.BLUETOOTH_CONNECT
+        )
+    } else {
+        GrantPermissionRule.grant(
+            Manifest.permission.ACCESS_FINE_LOCATION
+        )
+    }
 
     private lateinit var viewModel: BleViewModel
 
@@ -81,5 +88,19 @@ class MainScreenTest {
 
         // Stop the scan to clean up
         composeTestRule.onNodeWithText("Stop Scan").performClick()
+    }
+
+    @Test
+    fun scanStops_afterTimeout() {
+        // Click the "Start Scan" button
+        composeTestRule.onNodeWithText("Start Scan").performClick()
+        composeTestRule.waitForIdle() // Make sure scan has started
+
+        // Wait for more than the scan period
+        Thread.sleep(11000)
+        composeTestRule.waitForIdle() // Allow UI to update
+
+        // Verify that the scan button text is "Start Scan"
+        composeTestRule.onNodeWithText("Start Scan").assertIsDisplayed()
     }
 }
