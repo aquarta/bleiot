@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import it.unisalento.bleiot.BleCharacteristicInfo
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.delay
 
 /**
  * Main screen with menu for navigation
@@ -415,9 +416,26 @@ fun DeviceListItem(
             }
             if (isConnected){
                 Column {
+                    var textFieldValue by remember { mutableStateOf(deviceT.appTagName) }
+
+                    // Update local state if the ViewModel's state changes from the outside
+                    LaunchedEffect(deviceT.appTagName) {
+                        if (textFieldValue != deviceT.appTagName) {
+                            textFieldValue = deviceT.appTagName
+                        }
+                    }
+
+                    // Debounce updates to the ViewModel
+                    LaunchedEffect(textFieldValue) {
+                        if (textFieldValue != deviceT.appTagName) {
+                            delay(400L) // wait for 400ms of inactivity
+                            onTagNameChange(textFieldValue)
+                        }
+                    }
+
                     TextField(
-                        value = deviceT.appTagName,
-                        onValueChange = { onTagNameChange(it) },
+                        value = textFieldValue,
+                        onValueChange = { textFieldValue = it },
                         label = { Text("APP_TAG_NAME") },
                         modifier = Modifier.fillMaxWidth()
                     )
