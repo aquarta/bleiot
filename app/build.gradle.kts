@@ -86,10 +86,6 @@ dependencies {
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     
-    androidTestImplementation("org.mockito:mockito-core:5.10.0")
-    androidTestImplementation("org.mockito.kotlin:mockito-kotlin:5.1.0")
-    androidTestImplementation("com.linkedin.dexmaker:dexmaker-mockito-inline-extended:2.28.1")
-    
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
