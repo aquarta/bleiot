@@ -463,6 +463,34 @@ class BleViewModel : ViewModel() {
         }
     }
 
+    fun setCharacteristicNotification(deviceAddress: String, characteristicUuid: String, enabled: Boolean) {
+        // 1. Update the local state
+        val originalDevice = scannedDevicesMap[deviceAddress] ?: return
+
+        val charIndex = originalDevice.bleServices.indexOfFirst { it.uuid == characteristicUuid }
+        if (charIndex == -1) return
+
+        val updatedServices = originalDevice.bleServices.toMutableList()
+        val updatedCharInfo = updatedServices[charIndex].copy(isNotifying = enabled)
+        updatedServices[charIndex] = updatedCharInfo
+
+        val updatedDeviceTrans = originalDevice.copy(bleServices = updatedServices)
+        scannedDevicesMap[deviceAddress] = updatedDeviceTrans
+        uiUpdateTrigger.trySend(Unit)
+
+        // 2. Send intent to service
+        val intent = Intent(appContext, BleAndMqttService::class.java).apply {
+            action = if (enabled) {
+                BleAndMqttService.ACTION_ENABLE_CHAR_NOTIFY
+            } else {
+                BleAndMqttService.ACTION_DISABLE_CHAR_NOTIFY
+            }
+            putExtra(BleAndMqttService.EXTRA_DEVICE_ADDRESS, deviceAddress)
+            putExtra(BleAndMqttService.EXTRA_CHARACTERISTIC_NAME, characteristicUuid)
+        }
+        appContext?.startService(intent)
+    }
+
     private fun updateDeviceWhiteBoard(address: String, whiteboardName: String) {
         // Instant lookup
         val originalDevice = scannedDevicesMap[address] ?: return

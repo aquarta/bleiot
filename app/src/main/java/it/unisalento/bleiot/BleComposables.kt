@@ -163,6 +163,9 @@ fun BleNotificationApp(
                             onTagNameChange = { tagName ->
                                 viewModel.setAppTagName(deviceInfo.address, tagName)
                             },
+                            onNotificationChange = { charUuid, isChecked ->
+                                viewModel.setCharacteristicNotification(deviceInfo.address, charUuid, isChecked)
+                            },
                             rssi = deviceInfo.rssi
                         )
                     }
@@ -276,6 +279,9 @@ fun DeviceListSection(
                     onTagNameChange = {
                         // The viewModel is not available in this scope.
                     },
+                    onNotificationChange = { _, _ ->
+                        // The viewModel is not available in this scope.
+                    },
                     rssi = deviceInfo.rssi
                 )
             }
@@ -317,6 +323,7 @@ fun DeviceListItem(
     onPhyClick: (Int, Int, Int) -> Unit,
     onPriorityClick: (Int) -> Unit,
     onTagNameChange: (String) -> Unit,
+    onNotificationChange: (String, Boolean) -> Unit,
     rssi: Int
 ) {
     Card(
@@ -448,7 +455,8 @@ fun DeviceListItem(
 
                         CharListItem(
                             charInfos = deviceT.bleServices,
-                            deviceAddress = deviceAddress
+                            deviceAddress = deviceAddress,
+                            onNotificationChange = onNotificationChange
                         )
 
 
@@ -508,7 +516,8 @@ fun DeviceListItem(
 @Composable
 fun CharListItem(
     charInfos: List<BleCharacteristicInfo>,
-    deviceAddress: String
+    deviceAddress: String,
+    onNotificationChange: (String, Boolean) -> Unit
 ) {
     val context = LocalContext.current
     Column(
@@ -568,22 +577,10 @@ fun CharListItem(
                 }
 
                 if (charInfo.canNotify) {
-                    var isChecked by remember { mutableStateOf(charInfo.isNotifying) }
-
                     Switch(
-                        checked = isChecked,
+                        checked = charInfo.isNotifying,
                         onCheckedChange = { checked ->
-                            isChecked = checked
-                            val intent = Intent(context, BleAndMqttService::class.java).apply {
-                                action = if (checked) {
-                                    BleAndMqttService.ACTION_ENABLE_CHAR_NOTIFY
-                                } else {
-                                    BleAndMqttService.ACTION_DISABLE_CHAR_NOTIFY
-                                }
-                                putExtra(BleAndMqttService.EXTRA_DEVICE_ADDRESS, deviceAddress)
-                                putExtra(BleAndMqttService.EXTRA_CHARACTERISTIC_NAME, charInfo.uuid)
-                            }
-                            context.startService(intent)
+                            onNotificationChange(charInfo.uuid, checked)
                         }
                     )
                 }
