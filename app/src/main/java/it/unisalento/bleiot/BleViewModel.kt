@@ -216,16 +216,7 @@ class BleViewModel : ViewModel() {
             // Stop scanning after a pre-defined period
             handler.postDelayed({
                 if (scanning) {
-                    scanning = false
-                    if (ActivityCompat.checkSelfPermission(
-                            context,
-                            Manifest.permission.BLUETOOTH_SCAN
-                        ) == PackageManager.PERMISSION_GRANTED
-                    ) {
-                        bluetoothLeScanner?.stopScan(scanCallback)
-                        updateScanButtonText("Start Scan")
-                        updateStatus("Scan stopped")
-                    }
+                    stopScan()
                 }
             }, SCAN_PERIOD)
 
