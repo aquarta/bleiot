@@ -73,10 +73,31 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     testImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
+    
+    // Core Test Libraries (Updated for Android 16 / API 36)
+    androidTestImplementation("androidx.test:runner:1.7.0")
+    androidTestImplementation("androidx.test:rules:1.7.0")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    
+    // Espresso (CRITICAL: Must be 3.7.0+ for Android 16)
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
+
+    // Compose Testing
     androidTestImplementation(platform(libs.androidx.compose.bom))
-    androidTestImplementation(libs.androidx.ui.test.junit4)
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    
+    androidTestImplementation("org.mockito:mockito-core:5.10.0")
+    androidTestImplementation("org.mockito.kotlin:mockito-kotlin:5.1.0")
+    androidTestImplementation("com.linkedin.dexmaker:dexmaker-mockito-inline-extended:2.28.1")
+    
     debugImplementation(libs.androidx.ui.tooling)
-    debugImplementation(libs.androidx.ui.test.manifest)
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
+}
+
+// This forces all libraries to use the Android 16-compatible Espresso version.
+configurations.all {
+    resolutionStrategy {
+        force("androidx.test.espresso:espresso-core:3.7.0")
+        force("androidx.test:runner:1.7.0")
+    }
 }
