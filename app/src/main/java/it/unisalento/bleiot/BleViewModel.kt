@@ -480,13 +480,41 @@ class BleViewModel : ViewModel() {
         appContext?.startService(intent)
     }
 
+    fun setWhiteboardSubscription(deviceAddress: String, measureName: String, enabled: Boolean) {
+        // 1. Update the local state
+        val originalDevice = scannedDevicesMap[deviceAddress] ?: return
+
+        val measureIndex = originalDevice.whiteboardServices.indexOfFirst { it.name == measureName }
+        if (measureIndex == -1) return
+
+        val updatedServices = originalDevice.whiteboardServices.toMutableList()
+        val updatedMeasureInfo = updatedServices[measureIndex].copy(isSubscribed = enabled)
+        updatedServices[measureIndex] = updatedMeasureInfo
+
+        val updatedDeviceTrans = originalDevice.copy(whiteboardServices = updatedServices)
+        scannedDevicesMap[deviceAddress] = updatedDeviceTrans
+        uiUpdateTrigger.trySend(Unit)
+
+        // 2. Send intent to service
+        val intent = Intent(appContext, BleAndMqttService::class.java).apply {
+            action = if (enabled) {
+                BleAndMqttService.ACTION_ENABLE_WHITEBOARD_SUBSCRIBE
+            } else {
+                BleAndMqttService.ACTION_WHITEBOARD_UNSUBSCRIBE
+            }
+            putExtra(BleAndMqttService.EXTRA_DEVICE_ADDRESS, deviceAddress)
+            putExtra(BleAndMqttService.EXTRA_WHITEBOARD_MEASURE, measureName)
+        }
+        appContext?.startService(intent)
+    }
+
     private fun updateDeviceWhiteBoard(address: String, whiteboardName: String) {
         // Instant lookup
         val originalDevice = scannedDevicesMap[address] ?: return
 
-        if (originalDevice.whiteboardServices.contains(whiteboardName)) return
+        if (originalDevice.whiteboardServices.any { it.name == whiteboardName }) return
 
-        val updatedServices = originalDevice.whiteboardServices + whiteboardName
+        val updatedServices = originalDevice.whiteboardServices + WhiteboardMeasureInfo(name = whiteboardName)
         val updatedDeviceTrans = originalDevice.copy(whiteboardServices = updatedServices)
 
         scannedDevicesMap[address] = updatedDeviceTrans
@@ -542,12 +570,17 @@ data class BleDeviceInfo(
     val rssi: Int = 0
 )
 
+data class WhiteboardMeasureInfo(
+    val name: String,
+    val isSubscribed: Boolean = false
+)
+
 data class BleDeviceInfoTrans(
     val name: String,
     val address: String,
     val device: BluetoothDevice,
     var bleServices: List<BleCharacteristicInfo> = listOf<BleCharacteristicInfo>(),
-    var whiteboardServices: List<String> = listOf<String>(),
+    var whiteboardServices: List<WhiteboardMeasureInfo> = listOf(),
     var txPhy: String = "Unknown",
     var rxPhy: String = "Unknown",
     var supportedPhy: String = "Unknown",
