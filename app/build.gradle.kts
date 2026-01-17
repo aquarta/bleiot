@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    id("com.xcporter.metaview") version "0.0.6"
 }
 
 android {
@@ -95,5 +96,12 @@ configurations.all {
     resolutionStrategy {
         force("androidx.test.espresso:espresso-core:3.7.0")
         force("androidx.test:runner:1.7.0")
+    }
+}
+
+generateUml {
+    classTree {
+        outputFile = "class_diagram.puml"
+        target = file("src/main/java")
     }
 }
