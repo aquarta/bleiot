@@ -1115,42 +1115,42 @@ class BleAndMqttService : Service() {
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     private fun processCharacteristicData(gatt: BluetoothGatt, value: ByteArray, characteristicInfo: CharacteristicInfo, deviceName: String?) {
-                // Parse data using configuration
-                val parsedData = deviceConfigManager.parseCharacteristicData(characteristicInfo, value)
+        // Parse data using configuration
+        val parsedData = deviceConfigManager.parseCharacteristicData(characteristicInfo, value)
 
-                if (parsedData != null) {
-                    // Add device info if parsedData is a Map
-                    val enrichedData = if (parsedData is Map<*, *>) {
-                        val mutableData = parsedData.toMutableMap()
-                        mutableData["deviceName"] = deviceName ?: "Unknown"
-                        mutableData["deviceAddress"] = gatt.device.address ?: "Unknown"
-                        mutableData["gatewayName"] = bluetoothAdapter?.name ?: "Unknown"
-                        mutableData["gatewayBattery"] = getBatteryLevel()
-                        deviceRssi[gatt.device.address]?.let {
-                            mutableData["rssi"] = it
-                        }
-                        appTagNames[gatt.device.address]?.let {
-                            mutableData["APP_TAG_NAME"] = it
-                        }
-                        devicePhys[gatt.device.address]?.let {
-                            mutableData["tx_phy"] = phyToString(it.first)
-                            mutableData["rx_phy"] = phyToString(it.second)
-                        }
-
-
-                        mutableData
-                    } else {
-                        parsedData
-                    }
-
-                    val formattedData = "${characteristicInfo.name}: $enrichedData"
-                    updateData(formattedData)
-                    publishToMqtt(characteristicInfo.mqttTopic, toJsonString(enrichedData))
-
-                    Log.i(TAG, "Parsed ${characteristicInfo.name} from ${deviceName}: $enrichedData")
-                } else {
-                    Log.w(TAG, "Failed to parse data for ${characteristicInfo.name}")
+        if (parsedData != null) {
+            // Add device info if parsedData is a Map
+            val enrichedData = if (parsedData is Map<*, *>) {
+                val mutableData = parsedData.toMutableMap()
+                mutableData["deviceName"] = deviceName ?: "Unknown"
+                mutableData["deviceAddress"] = gatt.device.address ?: "Unknown"
+                mutableData["gatewayName"] = bluetoothAdapter?.name ?: "Unknown"
+                mutableData["gatewayBattery"] = getBatteryLevel()
+                deviceRssi[gatt.device.address]?.let {
+                    mutableData["rssi"] = it
                 }
+                appTagNames[gatt.device.address]?.let {
+                    mutableData["APP_TAG_NAME"] = it
+                }
+                devicePhys[gatt.device.address]?.let {
+                    mutableData["tx_phy"] = phyToString(it.first)
+                    mutableData["rx_phy"] = phyToString(it.second)
+                }
+
+
+                mutableData
+            } else {
+                parsedData
+            }
+
+            val formattedData = "${characteristicInfo.name}: $enrichedData"
+            updateData(formattedData)
+            publishToMqtt(characteristicInfo.mqttTopic, toJsonString(enrichedData))
+
+            Log.i(TAG, "Parsed ${characteristicInfo.name} from ${deviceName}: $enrichedData")
+        } else {
+            Log.w(TAG, "Failed to parse data for ${characteristicInfo.name}")
+        }
     }
 
     private fun handleCharacteristicChanged(
