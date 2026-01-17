@@ -382,7 +382,6 @@ class BleViewModel : ViewModel() {
                 true
             }
 
-            // 2. Create the new list efficiently
             // toList() creates a shallow copy which is safe for the UI state
             val currentScannedDevices = scannedDevicesMap.values.toList()
 
