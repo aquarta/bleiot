@@ -383,6 +383,7 @@ class BleAndMqttService : Service() {
 //                            "Notification: $address $gatt.device.name" + data
 //                        );
                     }
+                    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
                     override fun onError(error: MdsException) {
                         Log.e(
                             TAG,
@@ -836,7 +837,7 @@ class BleAndMqttService : Service() {
                 return
             }
             gattConnections.values.forEach { gatt ->
-                gatt.readRemoteRssi()
+                //gatt.readRemoteRssi()
             }
             rssiHandler.postDelayed(this, 5000) // 5 seconds
         }
