@@ -837,7 +837,7 @@ class BleAndMqttService : Service() {
                 return
             }
             gattConnections.values.forEach { gatt ->
-                //gatt.readRemoteRssi()
+                gatt.readRemoteRssi()
             }
             rssiHandler.postDelayed(this, 5000) // 5 seconds
         }
@@ -1113,32 +1113,8 @@ class BleAndMqttService : Service() {
             })
     }
 
-    private fun handleCharacteristicChanged(
-        gatt: BluetoothGatt,
-        characteristic: BluetoothGattCharacteristic,
-        value: ByteArray
-    ) {
-        try {
-            if (ActivityCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.BLUETOOTH_CONNECT
-                ) != PackageManager.PERMISSION_GRANTED && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-            ) {
-                return
-            }
-
-            val deviceName = gatt.device.name
-            val serviceUuid = characteristic.service.uuid.toString()
-            val characteristicUuid = characteristic.uuid.toString()
-            Log.i(TAG, "handleCharacteristicChanged findServiceAndCharacteristic ${deviceName} ${serviceUuid} ${characteristicUuid}")
-            // Try to find device configuration
-            val configPair = deviceConfigManager.findServiceAndCharacteristic(
-                deviceName, serviceUuid, characteristicUuid
-            )
-
-            if (configPair != null) {
-                val (serviceInfo, characteristicInfo) = configPair
-                
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    private fun processCharacteristicData(gatt: BluetoothGatt, value: ByteArray, characteristicInfo: CharacteristicInfo, deviceName: String?) {
                 // Parse data using configuration
                 val parsedData = deviceConfigManager.parseCharacteristicData(characteristicInfo, value)
 
@@ -1175,6 +1151,35 @@ class BleAndMqttService : Service() {
                 } else {
                     Log.w(TAG, "Failed to parse data for ${characteristicInfo.name}")
                 }
+    }
+
+    private fun handleCharacteristicChanged(
+        gatt: BluetoothGatt,
+        characteristic: BluetoothGattCharacteristic,
+        value: ByteArray
+    ) {
+        try {
+            if (ActivityCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.BLUETOOTH_CONNECT
+                ) != PackageManager.PERMISSION_GRANTED && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+            ) {
+                return
+            }
+
+            val deviceName = gatt.device.name
+            val serviceUuid = characteristic.service.uuid.toString()
+            val characteristicUuid = characteristic.uuid.toString()
+            Log.i(TAG, "handleCharacteristicChanged findServiceAndCharacteristic ${deviceName} ${serviceUuid} ${characteristicUuid}")
+            // Try to find device configuration
+            val configPair = deviceConfigManager.findServiceAndCharacteristic(
+                deviceName, serviceUuid, characteristicUuid
+            )
+
+            if (configPair != null) {
+                val (serviceInfo, characteristicInfo) = configPair
+                processCharacteristicData(gatt, value, characteristicInfo, deviceName)
+
             } else {
                 // Check if characteristic is known by UUID only (without device context)
                 val knownCharacteristic = deviceConfigManager.findCharacteristicByUuid(characteristicUuid)
