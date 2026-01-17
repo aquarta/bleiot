@@ -167,6 +167,9 @@ fun BleNotificationApp(
                             onNotificationChange = { charUuid, isChecked ->
                                 viewModel.setCharacteristicNotification(deviceInfo.address, charUuid, isChecked)
                             },
+                            onSubscriptionChange = { measureName, isChecked ->
+                                viewModel.setWhiteboardSubscription(deviceInfo.address, measureName, isChecked)
+                            },
                             rssi = deviceInfo.rssi
                         )
                     }
@@ -233,82 +236,7 @@ fun ScanButton(
     }
 }
 
-@Composable
-fun DeviceListSection(
-    devicesList: List<BleDeviceInfo>,
-    isScanning: Boolean,
-    connectedDeviceAddress: String?,
-    onDeviceClick: (BluetoothDevice) -> Unit,
-    onDisconnectClick: () -> Unit
-) {
-    if (devicesList.isNotEmpty()) {
-        Text(
-            text = "Discovered Devices:",
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp)
-        )
 
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-        ) {
-            items(devicesList) { deviceInfo ->
-                val isConnected = deviceInfo.address == connectedDeviceAddress
-
-                DeviceListItem(
-                    deviceName = deviceInfo.name,
-                    deviceAddress = deviceInfo.address,
-                    deviceT = deviceInfo.deviceT,
-                    isConnected = isConnected,
-                    onClick = {
-                        if (!isConnected) onDeviceClick(deviceInfo.deviceT.device)
-                    },
-                    onDisconnectClick = {
-                        if (isConnected) onDisconnectClick()
-                    },
-                    txPhy = deviceInfo.txPhy,
-                    rxPhy = deviceInfo.rxPhy,
-                    supportedPhy = deviceInfo.supportedPhy,
-                    onPhyClick = { txPhy, rxPhy, phyOptions ->
-                        // The viewModel is not available in this scope.
-                        // This composable is not used, so this is just a placeholder.
-                    },
-                    onPriorityClick = {
-                        // The viewModel is not available in this scope.
-                    },
-                    onTagNameChange = {
-                        // The viewModel is not available in this scope.
-                    },
-                    onNotificationChange = { _, _ ->
-                        // The viewModel is not available in this scope.
-                    },
-                    rssi = deviceInfo.rssi
-                )
-            }
-        }
-    } else if (isScanning) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(),
-            contentAlignment = Alignment.Center
-        ) {
-            CircularProgressIndicator()
-        }
-    } else {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "No devices found",
-                modifier = Modifier.alpha(0.6f)
-            )
-        }
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -326,6 +254,7 @@ fun DeviceListItem(
     onPriorityClick: (Int) -> Unit,
     onTagNameChange: (String) -> Unit,
     onNotificationChange: (String, Boolean) -> Unit,
+    onSubscriptionChange: (String, Boolean) -> Unit,
     rssi: Int
 ) {
     Card(
@@ -469,8 +398,9 @@ fun DeviceListItem(
                         verticalAlignment = Alignment.Bottom
                     ) {
                         WhiteBoardListItem(
-                            measureNames = deviceT.whiteboardServices,
-                            deviceAddress = deviceAddress
+                            measureInfos = deviceT.whiteboardServices,
+                            deviceAddress = deviceAddress,
+                            onSubscriptionChange = onSubscriptionChange
                         )
                     }
                     Row(
@@ -555,27 +485,27 @@ fun CharListItem(
                 }
 
                 if (charInfo.canWrite) {
-                    var textToWrite by remember { mutableStateOf("") }
-                    TextField(
-                        value = textToWrite,
-                        onValueChange = { textToWrite = it },
-                        label = { Text("Value to Write") },
-                        modifier = Modifier.height(50.dp)
-                    )
-                    Button(
-                        onClick = {
-                            val intent = Intent(context, BleAndMqttService::class.java).apply {
-                                action = BleAndMqttService.ACTION_WRITE_CHAR
-                                putExtra(BleAndMqttService.EXTRA_DEVICE_ADDRESS, deviceAddress)
-                                putExtra(BleAndMqttService.EXTRA_CHARACTERISTIC_NAME, charInfo.uuid)
-                                putExtra("EXTRA_CHARACTERISTIC_VALUE", textToWrite)
-                            }
-                            context.startService(intent)
-                        },
-                        modifier = Modifier.height(32.dp)
-                    ) {
-                        Text("WRITE", fontSize = 10.sp)
-                    }
+//                    var textToWrite by remember { mutableStateOf("") }
+//                    TextField(
+//                        value = textToWrite,
+//                        onValueChange = { textToWrite = it },
+//                        label = { Text("Value to Write") },
+//                        modifier = Modifier.height(50.dp)
+//                    )
+//                    Button(
+//                        onClick = {
+//                            val intent = Intent(context, BleAndMqttService::class.java).apply {
+//                                action = BleAndMqttService.ACTION_WRITE_CHAR
+//                                putExtra(BleAndMqttService.EXTRA_DEVICE_ADDRESS, deviceAddress)
+//                                putExtra(BleAndMqttService.EXTRA_CHARACTERISTIC_NAME, charInfo.uuid)
+//                                putExtra("EXTRA_CHARACTERISTIC_VALUE", textToWrite)
+//                            }
+//                            context.startService(intent)
+//                        },
+//                        modifier = Modifier.height(32.dp)
+//                    ) {
+//                        Text("WRITE", fontSize = 10.sp)
+//                    }
                 }
 
                 if (charInfo.canNotify) {
@@ -593,8 +523,9 @@ fun CharListItem(
 
 @Composable
 fun WhiteBoardListItem(
-    measureNames: List<String>,
+    measureInfos: List<WhiteboardMeasureInfo>,
     deviceAddress: String,
+    onSubscriptionChange: (String, Boolean) -> Unit
     ) {
     val context = LocalContext.current
     Row(
@@ -620,36 +551,20 @@ fun WhiteBoardListItem(
             verticalArrangement = Arrangement.spacedBy(8.dp), // Adds space between buttons
             horizontalAlignment = Alignment.End
         ) {
-            for (measureName in measureNames) {
-                Button(
-                    onClick = {
-                        val intent = Intent(context, BleAndMqttService::class.java).apply {
-                            // Use the specific ACTION you added to the Service for enabling notify
-                            action = BleAndMqttService.ACTION_ENABLE_WHITEBOARD_SUBSCRIBE
-                            putExtra(BleAndMqttService.EXTRA_DEVICE_ADDRESS, deviceAddress)
-                            putExtra(BleAndMqttService.EXTRA_WHITEBOARD_MEASURE, measureName)
+            for (measureInfo in measureInfos) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = measureInfo.name)
+                    Switch(
+                        checked = measureInfo.isSubscribed,
+                        onCheckedChange = { checked ->
+                            onSubscriptionChange(measureInfo.name, checked)
                         }
-                        // Start the service with the intent created above
-                        context.startService(intent)
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    ),
-                    modifier = Modifier
-                        .padding(start = 8.dp)
-                        .height(32.dp)
-                ) {
-                    Text(
-                        text = measureName.toString(),
-                        fontSize = 12.sp
                     )
                 }
             }
 
         }
     }
-
-
 }
 
 @Composable

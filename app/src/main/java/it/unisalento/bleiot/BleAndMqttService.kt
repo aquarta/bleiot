@@ -103,6 +103,7 @@ class BleAndMqttService : Service() {
         const val ACTION_READ_CHAR = "it.unisalento.bleiot.ACTION_READ_CHAR"
         const val ACTION_WRITE_CHAR = "it.unisalento.bleiot.ACTION_WRITE_CHAR"
         const val EXTRA_CHARACTERISTIC_VALUE = "it.unisalento.bleiot.EXTRA_CHARACTERISTIC_VALUE"
+        const val ACTION_WHITEBOARD_UNSUBSCRIBE = "it.unisalento.bleiot.ACTION_WHITEBOARD_UNSUBSCRIBE"
 
     }
 
@@ -190,11 +191,31 @@ class BleAndMqttService : Service() {
                     enableSubscriptionForWhiteBoardMeasure(address, measureName)
                 }
             }
+            ACTION_WHITEBOARD_UNSUBSCRIBE -> {
+                val address = intent.getStringExtra(EXTRA_DEVICE_ADDRESS)
+                val measureName = intent.getStringExtra(EXTRA_WHITEBOARD_MEASURE)
+                if (address != null && measureName != null) {
+                    disableSubscriptionForWhiteBoardMeasure(address, measureName)
+                }
+            }
         }
 
         return START_STICKY
     }
 
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    private fun disableSubscriptionForWhiteBoardMeasure(address: String, measureName: String) {
+        val gatt = gattConnections[address] ?: return
+        val whiteboardMeasure = deviceConfigManager.findMeasurePath(gatt.device.name, measureName) ?: return
+
+        val subscription = mSubscriptions[whiteboardMeasure.path]
+        if (subscription != null) {
+            subscription.unsubscribe()
+            mSubscriptions.remove(whiteboardMeasure.path)
+            Log.i(TAG, "Unsubscribed from whiteboard measure: $measureName")
+        }
+    }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     private fun readCharacteristic(address: String, charName: String) {
