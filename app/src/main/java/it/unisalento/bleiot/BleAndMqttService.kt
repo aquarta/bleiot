@@ -837,7 +837,7 @@ class BleAndMqttService : Service() {
                 return
             }
             gattConnections.values.forEach { gatt ->
-                gatt.readRemoteRssi()
+                //gatt.readRemoteRssi()
             }
             rssiHandler.postDelayed(this, 5000) // 5 seconds
         }
