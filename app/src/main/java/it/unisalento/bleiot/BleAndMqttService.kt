@@ -553,7 +553,7 @@ class BleAndMqttService : Service() {
                     mqttMessage.qos = 0 // fastest
                     //mqttMessage.qos = 1 receipt
                     mqttClient?.publish(topic, mqttMessage)
-                    Log.i(TAG, "Published to MQTT: $message")
+                    Log.d(TAG, "Published to MQTT: $message")
                 } else {
                     Log.w(TAG, "MQTT client not connected, attempting to reconnect")
                     setupMqttClient()
@@ -1147,7 +1147,7 @@ class BleAndMqttService : Service() {
             updateData(formattedData)
             publishToMqtt(characteristicInfo.mqttTopic, toJsonString(enrichedData))
 
-            Log.i(TAG, "Parsed ${characteristicInfo.name} from ${deviceName}: $enrichedData")
+            Log.d(TAG, "Parsed ${characteristicInfo.name} from ${deviceName}: $enrichedData")
         } else {
             Log.w(TAG, "Failed to parse data for ${characteristicInfo.name}")
         }
@@ -1170,7 +1170,7 @@ class BleAndMqttService : Service() {
             val deviceName = gatt.device.name
             val serviceUuid = characteristic.service.uuid.toString()
             val characteristicUuid = characteristic.uuid.toString()
-            Log.i(TAG, "handleCharacteristicChanged findServiceAndCharacteristic ${deviceName} ${serviceUuid} ${characteristicUuid}")
+            Log.d(TAG, "handleCharacteristicChanged findServiceAndCharacteristic ${deviceName} ${serviceUuid} ${characteristicUuid}")
             // Try to find device configuration
             val configPair = deviceConfigManager.findServiceAndCharacteristic(
                 deviceName, serviceUuid, characteristicUuid
