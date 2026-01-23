@@ -35,7 +35,7 @@ data class WhiteboardMeasure(
 data class CharacteristicInfo(
     val uuid: String,
     val name: String,
-    val dataType: String,
+    val dataType: String? = null,
     val mqttTopic: String,
     val customParser: String? = null,
     val structParser: StructParserConfig? = null
@@ -132,6 +132,7 @@ class DeviceConfigurationManager private constructor(context: Context) {
 
             }
         }
+        Log.d(TAG, "Missing Pair:  ${deviceName} ${charName}")
         return null
     }
 
@@ -184,10 +185,10 @@ class DeviceConfigurationManager private constructor(context: Context) {
     
     fun parseCharacteristicData(characteristicInfo: CharacteristicInfo, data: ByteArray, deviceName: String? = null, deviceAddress: String? = null): Any? {
         val config = getDeviceConfiguration() ?: return null
-        val dataTypeInfo = config.dataTypes[characteristicInfo.dataType]
         if (characteristicInfo.structParser!=null){
             return GenericStructParser(characteristicInfo.structParser).unpack(data)
         }
+        val dataTypeInfo = config.dataTypes[characteristicInfo.dataType]
         return when (characteristicInfo.dataType) {
             "4_byte_double" -> BleDataParsers.parse4ByteDouble(data)
             "4_byte_integer" -> BleDataParsers.parse4ByteInteger(data)

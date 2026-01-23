@@ -8,7 +8,6 @@ devices:
       #        characteristics:
       #          - uuid: "00002a37-0000-1000-8000-00805f9b34fb"
       #            name: "Heart Rate Measurement"
-      #            dataType: "ble_heartrate_hrm"
       #            customParser: "parseBLEHRM"
       #            mqttTopic: "ble/heartrate"
       - uuid: "0000180f-0000-1000-8000-00805f9b34fb"
@@ -16,7 +15,6 @@ devices:
         characteristics:
           - uuid: "00002a19-0000-1000-8000-00805f9b34fb"
             name: "Battery Level"
-            dataType: "ble_battery_level"
             mqttTopic: "ble/battery"
       - uuid: "34802252-7185-4d5d-b431-630e7050e8f0"
         name : "Movesense GattSensorData Service"
@@ -26,10 +24,8 @@ devices:
           # - IMU9
           - uuid: "34800001-7185-4d5d-b431-630e7050e8f0"
             name: "Movesense GSD Write Char"
-            dataType: "movesense_write"
           - uuid: "34800002-7185-4d5d-b431-630e7050e8f0"
             name: "Movesense GSD Read Char"
-            dataType: "movesense_read"
             mqttTopic: "ble/movesense"
     movesense_whiteboard:
       measures:
@@ -65,14 +61,12 @@ devices:
         characteristics:
           - uuid: "00002a19-0000-1000-8000-00805f9b34fb"
             name: "Battery Level"
-            dataType: "4_byte_float"
             mqttTopic: "ble/battery"
       - uuid: "00001809-0000-1000-8000-00805f9b34fb"
         name: "Temperature Service"
         characteristics:
           - uuid: "00002a6e-0000-1000-8000-00805f9b34fb"
             name: "Temperature"
-            dataType: "4_byte_float"
             mqttTopic: "ble/temperature"
 
   BlueNRGLP:
@@ -83,10 +77,8 @@ devices:
         name: "BLUENRG_MS_SERVICE"
         characteristics:
           - uuid: "00140000-0001-11e1-ac36-0002a5d5c51b"
-            name: "BLUENRG_MS_TEMPERATURE_CHARACTERISTIC"
-            dataType: "custom_temperature"
-            mqttTopic: "ble/dummylp/temperature"
-            #customParser: "parseTemperatureDeta"
+            name: "ST BLE TEMP"
+            mqttTopic: "ble/dummy/temperature"
             structParser:
               endianness: "LITTLE_ENDIAN"
               fields:
@@ -98,7 +90,6 @@ devices:
                   type: "short"
           - uuid: "00c00000-0001-11e1-ac36-0002a5d5c51b"
             name: "ST BLE IMU"
-            dataType: "custom_imu"
             mqttTopic: "ble/dummy/imu"
             structParser:
               endianness: "LITTLE_ENDIAN"
@@ -124,10 +115,8 @@ devices:
         name: "BLUENRG_MS_SERVICE"
         characteristics:
           - uuid: "00140000-0001-11e1-ac36-0002a5d5c51b"
-            name: "BLUENRG_MS_TEMPERATURE_CHARACTERISTIC"
-            dataType: "custom_temperature"
+            name: "ST BLE TEMP"
             mqttTopic: "ble/dummylp/temperature"
-            #customParser: "parseTemperatureDeta"
             structParser:
               endianness: "LITTLE_ENDIAN"
               fields:
@@ -139,7 +128,6 @@ devices:
                   type: "short"
           - uuid: "00c00000-0001-11e1-ac36-0002a5d5c51b"
             name: "ST BLE IMU"
-            dataType: "custom_imu"
             mqttTopic: "ble/dummy/imu"
             structParser:
               endianness: "LITTLE_ENDIAN"
@@ -166,7 +154,6 @@ devices:
         characteristics:
           - uuid: "340a1b80-cf4b-11e1-ac36-0002a5d5c51b"
             name: "Accelerator characteristic"
-            dataType: "custom_imu"
             mqttTopic: "ble/dummybnrg/acc"
             structParser:
               endianness: "LITTLE_ENDIAN"
@@ -179,7 +166,6 @@ devices:
                   type: "short"
           - uuid: "e23e78a0-cf4a-11e1-8ffc-0002a5d5c51b"
             name: "FreeFall characteristic"
-            dataType: "custom_imu"
             mqttTopic: "ble/dummybnrg/free_fall"
             structParser:
               endianness: "LITTLE_ENDIAN"
@@ -196,9 +182,7 @@ devices:
         characteristics:
           - uuid: "00020000-0001-11e1-ac36-0002a5d5c51b"
             name: "BATTERY_CHAR"
-            dataType: "STBatteryStruct"
             mqttTopic: "ble/battery"
-            customParser: "parseSTBattery"
             structParser:
               endianness: "LITTLE_ENDIAN"
               fields:
@@ -210,16 +194,12 @@ devices:
                   type: "short"
                 - name: "current_mA"
                   type: "short"
-          - uuid: "00000014-0002-11e1-ac36-0002a5d5c51b"
-            name: "EXT_CONFIG"
-            dataType: "custom_temperature"
-            mqttTopic: "ble/temperature"
-            customParser: "parseTemperatureDeta"
+          # - uuid: "00000014-0002-11e1-ac36-0002a5d5c51b"
+          #   name: "EXT_CONFIG"
+          #   mqttTopic: "ble/ext"
           - uuid: "00140000-0001-11e1-ac36-0002a5d5c51b"
             name: "TEMPERATURE"
-            dataType: "custom_temperature"
             mqttTopic: "ble/temperature"
-            customParser: "parseTemperatureDeta"
             structParser:
               endianness: "LITTLE_ENDIAN"
               fields:
@@ -231,7 +211,6 @@ devices:
                   type: "short"
           - uuid: "00e00000-0001-11e1-ac36-0002a5d5c51b"
             name: "ST BLE PNP IMU"
-            dataType: "custom_imu"
             mqttTopic: "ble/dummy/imu"
             structParser:
               endianness: "LITTLE_ENDIAN"
@@ -266,9 +245,7 @@ devices:
         characteristics:
           - uuid: "00020000-0001-11e1-ac36-0002a5d5c51b"
             name: "BATTERY_CHAR"
-            dataType: "STBatteryStruct"
             mqttTopic: "ble/battery"
-            customParser: "parseSTBattery"
             structParser: 
               endianness: "LITTLE_ENDIAN"
               fields:
@@ -282,12 +259,9 @@ devices:
                   type: "short"
           - uuid: "00000014-0002-11e1-ac36-0002a5d5c51b"
             name: "EXT_CONFIG"
-            dataType: "custom_temperature"
             mqttTopic: "ble/temperature"
-            customParser: "parseTemperatureDeta"
           - uuid: "001c0000-0001-11e1-ac36-0002a5d5c51b"
             name: "TEMPERATURE AND HUMIDITY"
-            dataType: "custom_temperature_humidity"
             mqttTopic: "ble/temperature"
             structParser:
               endianness: "LITTLE_ENDIAN"
@@ -302,7 +276,6 @@ devices:
                   type: "short"
           - uuid: "00e00000-0001-11e1-ac36-0002a5d5c51b"
             name: "ST BLE B2 IMU"
-            dataType: "custom_imu"
             mqttTopic: "ble/dummy/imu"
             structParser:
               endianness: "LITTLE_ENDIAN"

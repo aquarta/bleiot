@@ -155,7 +155,7 @@ class RemoteConfigManager private constructor(private val context: Context) {
     private fun parseCharacteristicInfo(charMap: Map<String, Any>): CharacteristicInfo? {
         return try {val uuid = charMap["uuid"] as? String ?: return null
             val name = charMap["name"] as? String ?: "Unknown Characteristic"
-            val dataType = charMap["dataType"] as? String ?: return null
+            val dataType = charMap["dataType"] as? String
             val mqttTopic = charMap["mqttTopic"] as? String ?: "ble/data"
             val customParser = charMap["customParser"] as? String
 
