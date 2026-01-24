@@ -29,17 +29,67 @@ devices:
             mqttTopic: "ble/movesense"
     movesense_whiteboard:
       measures:
+        - name: Temp
+          methods:
+            - subscribe
+          path: /Meas/Temp
+          mqttTopic: ble/movesense/Temp
+          SingleMeasurementParser:
+            - name: 'stimestamp'
+              path: 'Body.Timestamp'
+              type: 'integer'
+            - name: 'temperature'
+              path: 'Body.Measurement'
+              type: 'float'
         - name: IMU9
           methods:
             - subscribe
           #path: /meas/IMU9/{SampleRate}
           path: /Meas/IMU9/13
           mqttTopic: ble/movesense/IMU9
+          jsonPayloadParser:
+            use_jq: true # Use the first(jq(...)) syntax for parsing
+            fields:
+              - name: 'stimestamp'
+                path: 'Body.Timestamp'
+                type: 'integer'
+              - name: 'acc_x'
+                path: 'Body.ArrayAcc[0].x'
+                type: 'float'
+              - name: 'acc_y'
+                path: 'Body.ArrayAcc[0].y'
+                type: 'float'
+              - name: 'acc_z'
+                path: 'Body.ArrayAcc[0].z'
+                type: 'float'
+              - name: 'gyro_x'
+                path: 'Body.ArrayGyro[0].x'
+                type: 'float'
+              - name: 'gyro_y'
+                path: 'Body.ArrayGyro[0].y'
+                type: 'float'
+              - name: 'gyro_z'
+                path: 'Body.ArrayGyro[0].z'
+                type: 'float'
+              - name: 'mag_x'
+                path: 'Body.ArrayMagn[0].x'
+                type: 'float'
+              - name: 'mag_y'
+                path: 'Body.ArrayMagn[0].y'
+                type: 'float'
+              - name: 'mag_z'
+                path: 'Body.ArrayMagn[0].z'
+                type: 'float'
         - name: ECG
           methods:
             - subscribe
           path: /Meas/ECG/125
           mqttTopic: ble/movesense/ECG
+          jsonArrayParser: 
+            arrayPath: Body.Samples
+            fields:
+              - name: value
+                type: integer
         - name: Battery
           methods:
             - get
