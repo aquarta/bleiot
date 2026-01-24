@@ -12,7 +12,7 @@ import datetime
 MQTT_BROKER = "vmi2211704.contaboserver.net"  # Change to your MQTT broker address
 MQTT_PORT = 1883
 MQTT_TOPIC = "ble/+"
-MQTT_TOPIC2 = "ble/dummy/+"
+MQTT_TOPIC2 = "ble/#"
 MQTT_USERNAME = "testuser"  # Set if authentication is required
 MQTT_PASSWORD = "p0pp1t025"  # Set if authentication is required
 
