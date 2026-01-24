@@ -172,7 +172,7 @@ def main():
                 mqtt_topic = measure.get('mqttTopic')
 
                 if not all([device_short_name, measure_name_cleaned, mqtt_topic]):
-                    print(f"Skipping measure in {device_name} due to missing shortName, name, or mqttTopic.")
+                    print(f"Skipping measure in {device_name} due to missing shortName, name, or mqttTopic.{[device_short_name, measure_name_cleaned, mqtt_topic, measure]}")
                     continue
 
                 measure_name = f"{device_short_name}_{measure_name_cleaned}"
@@ -219,7 +219,7 @@ def main():
                     influx_fields = ",".join(influx_fields_parts)
                     write_syntax = f"{measure_name},deviceName=${{deviceName}},gatewayName=${{gatewayName}} {influx_fields}"
 
-                    create_emqx_action(action_name, action_desc, write_syntax)
+                    create_emqx_action(action_name, action_desc, write_syntax, action_list)
                     create_emqx_rule(rule_id, rule_name, rule_desc, sql, action_name)
 
                 elif 'jsonArrayParser' in measure:
@@ -232,6 +232,7 @@ def main():
                     influx_fields_parts = []
 
                     for field in fields:
+                        print(field)
                         field_name = field['name']
                         field_type = field.get('type', 'integer')
                         field_path = field.get('path')
@@ -250,7 +251,36 @@ def main():
                     influx_fields = ",".join(influx_fields_parts)
                     write_syntax = f"{measure_name},deviceName=${{deviceName}},gatewayName=${{gatewayName}} {influx_fields}"
 
-                    create_emqx_action(action_name, action_desc, write_syntax)
+                    create_emqx_action(action_name, action_desc, write_syntax, action_list)
+                    create_emqx_rule(rule_id, rule_name, rule_desc, sql, action_name)
+                
+                elif 'SingleMeasurementParser' in measure:
+                    parser_config = measure['SingleMeasurementParser']
+                    fields = parser_config
+                    
+                    select_parts = ["payload.deviceName as deviceName", "payload.gatewayName as gatewayName"]
+                    influx_fields_parts = []
+                    
+                    for field in fields:
+                        field_name = field['name']
+                        field_path = field.get('path')
+                        field_type = field.get('type', 'float')
+
+                        if field_path:
+                            select_parts.append(f"payload.{field_path} as {field_name}")
+                        else:
+                            select_parts.append(f"payload as {field_name}")
+
+                        if field_type == 'integer':
+                            influx_fields_parts.append(f"{field_name}=${{{field_name}}}i")
+                        elif field_type == 'float':
+                            influx_fields_parts.append(f"{field_name}=${{{field_name}}}")
+
+                    sql = f"SELECT {', '.join(select_parts)} FROM \"{mqtt_topic}\""
+                    influx_fields = ",".join(influx_fields_parts)
+                    write_syntax = f"{measure_name},deviceName=${{deviceName}},gatewayName=${{gatewayName}} {influx_fields}"
+
+                    create_emqx_action(action_name, action_desc, write_syntax, action_list)
                     create_emqx_rule(rule_id, rule_name, rule_desc, sql, action_name)
 
 main()
