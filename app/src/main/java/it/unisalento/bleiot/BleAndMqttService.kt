@@ -1149,7 +1149,7 @@ class BleAndMqttService : Service() {
 
             Log.d(TAG, "Parsed ${characteristicInfo.name} from ${deviceName}: $enrichedData")
         } else {
-            Log.w(TAG, "Failed to parse data for ${characteristicInfo.name}")
+            Log.w(TAG, "Failed to parse data for ${characteristicInfo.name} ${value}")
         }
     }
 
