@@ -621,7 +621,7 @@ class BleAndMqttService : Service() {
                         }
 
                         override fun onConnectionComplete(macAddress: String, serial: String) {
-                            Log.d(TAG, "Connected :$macAddress --> $serial")
+                            Log.d(TAG, "MoveSense Connected : $macAddress --> $serial")
                             movesenseConnectedDevices[macAddress] = serial
                         }
 
