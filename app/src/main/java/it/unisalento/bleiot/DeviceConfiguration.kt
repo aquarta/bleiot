@@ -352,7 +352,7 @@ class DeviceConfigurationManager private constructor(context: Context) {
                                     CharacteristicInfo(
                                         uuid = charJson.getString("uuid"),
                                         name = charJson.getString("name"),
-                                        dataType = charJson.getString("dataType"),
+                                        dataType = charJson.optString("dataType"),
                                         mqttTopic = charJson.getString("mqttTopic"),
                                         customParser = charJson.optString("customParser")
                                             .takeIf { it.isNotEmpty() },
@@ -411,15 +411,15 @@ class DeviceConfigurationManager private constructor(context: Context) {
 
             // Deserialize dataTypes
             val dataTypes = mutableMapOf<String, DataTypeInfo>()
-            val dataTypesJson = json.optJSONObject("dataTypes")
-            dataTypesJson?.keys()?.forEach { dataTypeKey ->
-                val dataTypeJson = dataTypesJson.getJSONObject(dataTypeKey)
-                dataTypes[dataTypeKey] = DataTypeInfo(
-                    size = dataTypeJson.getString("size"),
-                    conversion = dataTypeJson.getString("conversion"),
-                    description = dataTypeJson.optString("description").takeIf { it.isNotEmpty() }
-                )
-            }
+//            val dataTypesJson = json.optJSONObject("dataTypes")
+//            dataTypesJson?.keys()?.forEach { dataTypeKey ->
+//                val dataTypeJson = dataTypesJson.getJSONObject(dataTypeKey)
+//                dataTypes[dataTypeKey] = DataTypeInfo(
+//                    size = dataTypeJson.getString("size"),
+//                    conversion = dataTypeJson.getString("conversion"),
+//                    description = dataTypeJson.optString("description").takeIf { it.isNotEmpty() }
+//                )
+//            }
 
             return DeviceConfiguration(devices = devices, dataTypes = dataTypes)
         } catch (e: Exception) {
