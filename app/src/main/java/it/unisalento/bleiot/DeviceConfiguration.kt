@@ -60,15 +60,7 @@ data class StructField(
     val type: String
 )
 
-// Update your existing Characteristic config class to include the new field
-data class BleCharacteristicConfig(
-    val uuid: String,
-    val name: String,
-    val dataType: String?,
-    val mqttTopic: String?,
-    // Add this nullable field:
-    val structParser: StructParserConfig? = null
-)
+
 
 class DeviceConfigurationManager private constructor(context: Context) {
     private val context = context.applicationContext
