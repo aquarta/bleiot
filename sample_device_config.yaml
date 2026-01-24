@@ -16,6 +16,11 @@ devices:
           - uuid: "00002a19-0000-1000-8000-00805f9b34fb"
             name: "Battery Level"
             mqttTopic: "ble/battery"
+            structParser:
+              endianness: "LITTLE_ENDIAN"
+              fields:
+                - name: "battery_level"
+                  type: "byte"
       - uuid: "34802252-7185-4d5d-b431-630e7050e8f0"
         name : "Movesense GattSensorData Service"
         characteristics:
