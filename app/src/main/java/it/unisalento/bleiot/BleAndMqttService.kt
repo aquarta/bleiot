@@ -326,10 +326,10 @@ class BleAndMqttService : Service() {
             return
         }
 
-
-        if (!movesenseConnectedDevices.containsKey(gatt.device.address)){
-            return
-        }
+        // [AQ] if needed comment why
+        // if (!movesenseConnectedDevices.containsKey(gatt.device.address)){
+        //    return
+        // }
         val movesenseSerial = movesenseConnectedDevices[gatt.device.address]
         Log.i(TAG, "enableSubscriptionForWhiteBoardMeasure $whiteboardMeasure --> ${whiteboardMeasure.path}")
         if (whiteboardMeasure.methods[0] == "subscribe"){
