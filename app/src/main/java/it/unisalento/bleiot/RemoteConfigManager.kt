@@ -2,13 +2,16 @@ package it.unisalento.bleiot
 
 import android.content.Context
 import android.util.Log
+import it.unisalento.bleiot.Experiment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.yaml.snakeyaml.Yaml
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+import kotlin.Result.Companion.failure
 
 class RemoteConfigManager private constructor(private val context: Context) {
     private val httpClient = OkHttpClient.Builder()
@@ -47,17 +50,17 @@ class RemoteConfigManager private constructor(private val context: Context) {
             val response = httpClient.newCall(request).execute()
             
             if (!response.isSuccessful) {
-                return@withContext Result.failure(IOException("HTTP ${response.code}: ${response.message}"))
+                return@withContext failure(IOException("HTTP ${response.code}: ${response.message}"))
             }
             
             val yamlContent = response.body?.string()
-                ?: return@withContext Result.failure(IOException("Empty response body"))
+                ?: return@withContext failure(IOException("Empty response body"))
             
             Log.d(TAG, "Downloaded YAML content (${yamlContent.length} chars)")
             
             // Parse YAML
             val parsedConfig = parseYamlConfig(yamlContent)
-                ?: return@withContext Result.failure(IOException("Failed to parse YAML"))
+                ?: return@withContext failure(IOException("Failed to parse YAML"))
             
             // Save to local storage
             deviceConfigManager.saveConfiguration(parsedConfig)
@@ -70,8 +73,36 @@ class RemoteConfigManager private constructor(private val context: Context) {
             
         } catch (e: Exception) {
             Log.e(TAG, "Error downloading config", e)
-            Result.failure(e)
+            failure(e)
         }
+    }
+    
+    suspend fun getExperimentConfig(serverUrl: String, id: String): String = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$serverUrl/experiment/$id/conf")
+            .build()
+        
+        val response = httpClient.newCall(request).execute()
+        
+        if (!response.isSuccessful) {
+            Log.e(TAG,"HTTP ${response.code}: ${response.message}")
+            throw IOException("HTTP ${response.code}: ${response.message}")
+        }
+        Log.d(TAG,"HTTP ${response.code}")
+        val body = response.body?.string() ?: throw IOException("Empty response body")
+        // Parse YAML
+        val parsedConfig = parseYamlConfig(body)
+            ?: return@withContext ""
+
+
+        // Save to local storage
+        deviceConfigManager.saveConfiguration(parsedConfig)
+
+        // Also save raw YAML for backup
+        saveRawYaml(body)
+
+
+        return@withContext body
     }
     
     private fun parseYamlConfig(yamlContent: String): DeviceConfiguration? {

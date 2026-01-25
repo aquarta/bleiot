@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
     id("com.xcporter.metaview") version "0.0.6"
 }
 
@@ -19,13 +20,31 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            // TODO: Replace with your actual keystore details.
+            // It's recommended to load these from a local.properties file instead of hardcoding.
+            // Example:
+            // storeFile = file(project.properties["releaseStoreFile"] as String)
+            // storePassword = project.properties["releaseStorePassword"] as String
+            // keyAlias = project.properties["releaseKeyAlias"] as String
+            // keyPassword = project.properties["releaseKeyPassword"] as String
+            // storeFile = file("path/to/your/keystore.jks") // Placeholder
+            // storePassword = "your_keystore_password" // Placeholder
+            // keyAlias = "your_key_alias" // Placeholder
+            // keyPassword = "your_key_password" // Placeholder
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true // Enable code shrinking and obfuscation
+            isShrinkResources = true // Remove unused resources
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
@@ -72,6 +91,7 @@ dependencies {
     
     // HTTP client for downloading config
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation(libs.kotlinx.serialization.json)
 
     testImplementation(libs.junit)
     
