@@ -19,6 +19,23 @@ class RemoteConfigManager private constructor(private val context: Context) {
     private val deviceConfigManager = DeviceConfigurationManager.getInstance(context)
     private val yaml = Yaml()
     
+    suspend fun getExperiments(serverUrl: String): List<Experiment> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$serverUrl/experiment")
+            .build()
+        
+        val response = httpClient.newCall(request).execute()
+        
+        if (!response.isSuccessful) {
+            Log.e(TAG,"HTTP ${response.code}: ${response.message}")
+            throw IOException("HTTP ${response.code}: ${response.message}")
+        }
+        Log.d(TAG,"HTTP ${response.code}")
+        val json = response.body?.string() ?: throw IOException("Empty response body")
+        
+        return@withContext Json.decodeFromString<List<Experiment>>(json)
+    }
+
     suspend fun downloadAndSaveConfig(configUrl: String): Result<String> = withContext(Dispatchers.IO) {
         try {
             Log.d(TAG, "Downloading config from: $configUrl")
