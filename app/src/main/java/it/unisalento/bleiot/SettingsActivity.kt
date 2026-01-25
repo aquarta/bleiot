@@ -29,11 +29,16 @@ import it.unisalento.bleiot.ui.theme.BleNotificationTheme
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
+import android.util.Log
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import it.unisalento.bleiot.Experiment
 
 class SettingsActivity : ComponentActivity() {
     
     private var bleService: BleAndMqttService? = null
     private var serviceBound = false
+    private val remoteConfigManager by lazy { RemoteConfigManager.getInstance(this) }
     
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
@@ -63,7 +68,8 @@ class SettingsActivity : ComponentActivity() {
                     },
                     onMqttSettingsSaved = {
                         bleService?.reloadMqttSettings()
-                    }
+                    },
+                    remoteConfigManager = remoteConfigManager
                 )
             }
         }
@@ -80,7 +86,11 @@ class SettingsActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreenWithMenu(onMainClick: () -> Unit, onMqttSettingsSaved: () -> Unit = {}) {
+fun SettingsScreenWithMenu(
+    onMainClick: () -> Unit, 
+    onMqttSettingsSaved: () -> Unit = {},
+    remoteConfigManager: RemoteConfigManager
+) {
     var showMenu by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -116,14 +126,19 @@ fun SettingsScreenWithMenu(onMainClick: () -> Unit, onMqttSettingsSaved: () -> U
     ) { paddingValues ->
         SettingsScreen(
             modifier = Modifier.padding(paddingValues),
-            onMqttSettingsSaved = onMqttSettingsSaved
+            onMqttSettingsSaved = onMqttSettingsSaved,
+            remoteConfigManager = remoteConfigManager
         )
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(modifier: Modifier = Modifier, onMqttSettingsSaved: () -> Unit = {}) {
+fun SettingsScreen(
+    modifier: Modifier = Modifier, 
+    onMqttSettingsSaved: () -> Unit = {},
+    remoteConfigManager: RemoteConfigManager
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val mqttSettings = remember { MqttSettings.getInstance(context) }
@@ -139,6 +154,25 @@ fun SettingsScreen(modifier: Modifier = Modifier, onMqttSettingsSaved: () -> Uni
     var showConfigMessage by remember { mutableStateOf("") }
     var isDownloadingConfig by remember { mutableStateOf(false) }
     var lastUpdateTime by remember { mutableStateOf(remoteConfigManager.getLastUpdateTime()) }
+    
+    var experimentServerUrl by remember { mutableStateOf("http://127.0.0.1:5001") }
+    var experiments by remember { mutableStateOf<List<Experiment>>(emptyList()) }
+    var selectedExperiment by remember { mutableStateOf<Experiment?>(null) }
+    var expanded by remember { mutableStateOf(false) }
+
+    // Fetch experiments when the screen is first composed
+//    LaunchedEffect(Unit) {
+//        scope.launch {
+//            try {
+//                val response = remoteConfigManager.getExperiments(experimentServerUrl)
+//                experiments = listOf(response)
+//            } catch (e: Exception) {
+//                // Handle error
+//                Log.e("SettingsScreen", "Error fetching experiments", e)
+//            }
+//        }
+//    }
+    
     // 1. Create the scroll state
     val scrollState = rememberScrollState()
     Surface(
@@ -157,6 +191,101 @@ fun SettingsScreen(modifier: Modifier = Modifier, onMqttSettingsSaved: () -> Uni
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 32.dp)
             )
+            
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Text(
+                        text = "Experiment Configuration",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = experimentServerUrl,
+                            onValueChange = { experimentServerUrl = it },
+                            label = { Text("Experiment Server URL") },
+                            modifier = Modifier.weight(1f)
+                        )
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    try {
+                                        val response = remoteConfigManager.getExperiments(experimentServerUrl)
+                                        experiments = response
+                                    } catch (e: Exception) {
+                                        // Handle error
+                                        Log.e("SettingsScreen", "Error fetching experiments", e)
+                                    }
+                                }
+                            },
+                            modifier = Modifier.padding(start = 8.dp)
+                        ) {
+                            Text("Get")
+                        }
+                    }
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        ExposedDropdownMenuBox(
+                            expanded = expanded,
+                            onExpandedChange = { expanded = !expanded },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            OutlinedTextField(
+                                value = selectedExperiment?.id ?: "",
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Select Experiment") },
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                                },
+                                modifier = Modifier.menuAnchor()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = expanded,
+                                onDismissRequest = { expanded = false }
+                            ) {
+                                experiments.forEach { experiment ->
+                                    DropdownMenuItem(
+                                        text = { Text(experiment.id) },
+                                        onClick = {
+                                            selectedExperiment = experiment
+                                            expanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    selectedExperiment?.let {
+                                        val config = remoteConfigManager.getExperimentConfig(experimentServerUrl, it.id)
+                                        // TODO: Do something with the config
+                                    }
+                                }
+                            },
+                            enabled = selectedExperiment != null,
+                            modifier = Modifier.padding(start = 8.dp)
+                        ) {
+                            Text("Get")
+                        }
+                    }
+                }
+            }
             
             Card(
                 modifier = Modifier
@@ -385,6 +514,8 @@ fun SettingsScreen(modifier: Modifier = Modifier, onMqttSettingsSaved: () -> Uni
 @Composable
 fun SettingsScreenPreview() {
     BleNotificationTheme {
-        SettingsScreen()
+        SettingsScreen(
+            remoteConfigManager = RemoteConfigManager.getInstance(LocalContext.current)
+        )
     }
 }
