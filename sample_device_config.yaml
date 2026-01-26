@@ -162,6 +162,25 @@ devices:
                 - name: "gyroy"
                   type: "short"
                 - name: "gyroz"
+  BLPSMS005:
+    name: "BLPSMS005"
+    shortName: "BLPSMS005"
+    services:
+      - uuid: "00000000-0001-11e1-9ab4-0002a5d5c51b"
+        name: "BLUENRG_MS_SERVICE"
+        characteristics:
+          - uuid: "00140000-0001-11e1-ac36-0002a5d5c51b"
+            name: "ST BLE TEMP"
+            mqttTopic: "ble/dummylp/temperature"
+            structParser:
+              endianness: "LITTLE_ENDIAN"
+              fields:
+                - name: "stimestamp"
+                  type: "ushort"
+                - name: "pressure"
+                  type: "int"
+                - name: "temperature"
+                  type: "short"
   BLPSMS:
     name: "BLPSMS"
     shortName: "BLPSMS"
@@ -200,34 +219,6 @@ devices:
                 - name: "gyroy"
                   type: "short"
                 - name: "gyroz"
-  BLUENRGSENSOR:
-    name: "BLUENRGSENSOR"
-    shortName: "BLUENRGSENSOR"
-    services:
-      - uuid: "02366e80-cf3a-11e1-9ab4-0002a5d5c51b"
-        name: "Accelerator Service"
-        characteristics:
-          - uuid: "340a1b80-cf4b-11e1-ac36-0002a5d5c51b"
-            name: "Accelerator characteristic"
-            mqttTopic: "ble/dummybnrg/acc"
-            structParser:
-              endianness: "LITTLE_ENDIAN"
-              fields:
-                - name: "accx"
-                  type: "short"
-                - name: "accy"
-                  type: "short"
-                - name: "accz"
-                  type: "short"
-          - uuid: "e23e78a0-cf4a-11e1-8ffc-0002a5d5c51b"
-            name: "FreeFall characteristic"
-            mqttTopic: "ble/dummybnrg/free_fall"
-            structParser:
-              endianness: "LITTLE_ENDIAN"
-              fields:
-                - name: "state"
-                  type: "short"
-
   "BLEPnP":
     name: "BLEPnP"
     shortName: "BLEPnP"
@@ -249,9 +240,6 @@ devices:
                   type: "short"
                 - name: "current_mA"
                   type: "short"
-          # - uuid: "00000014-0002-11e1-ac36-0002a5d5c51b"
-          #   name: "EXT_CONFIG"
-          #   mqttTopic: "ble/ext"
           - uuid: "00140000-0001-11e1-ac36-0002a5d5c51b"
             name: "TEMPERATURE"
             mqttTopic: "ble/temperature"
@@ -290,7 +278,6 @@ devices:
                   type: "short"
                 - name: "magz"
                   type: "short"
-
   "BCN-002":
     name: "BCN-002"
     shortName: "BCN-002"
@@ -308,13 +295,6 @@ devices:
                   type: "ushort"
                 - name: "battery_level"
                   type: "short"
-                - name: "voltage_mV"
-                  type: "short"
-                - name: "current_mA"
-                  type: "short"
-          - uuid: "00000014-0002-11e1-ac36-0002a5d5c51b"
-            name: "EXT_CONFIG"
-            mqttTopic: "ble/temperature"
           - uuid: "001c0000-0001-11e1-ac36-0002a5d5c51b"
             name: "TEMPERATURE AND HUMIDITY"
             mqttTopic: "ble/temperature"
