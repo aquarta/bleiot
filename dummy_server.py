@@ -3,7 +3,7 @@ import yaml
 
 app = Flask(__name__)
 
-@app.route('/experiment', methods=['GET'])
+@app.route('/config/experiments', methods=['GET'])
 def get_experiment():
     # return jsonify({
 
@@ -29,7 +29,7 @@ def get_experiment():
     ]
     )
 
-@app.route('/experiment/<id>/conf', methods=['GET'])
+@app.route('/config/experiments/<id>', methods=['GET'])
 def get_experiment_config(id):
     try:
         with open('sample_device_config.yaml', 'r') as file:
