@@ -14,6 +14,8 @@ import java.util.concurrent.TimeUnit
 import kotlin.Result.Companion.failure
 
 class RemoteConfigManager private constructor(private val context: Context) {
+    private val GET_EXPERIMENTS_REST_PATH = "config/experiments"
+
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
@@ -24,7 +26,7 @@ class RemoteConfigManager private constructor(private val context: Context) {
     
     suspend fun getExperiments(serverUrl: String): List<Experiment> = withContext(Dispatchers.IO) {
         val request = Request.Builder()
-            .url("$serverUrl/experiment")
+            .url("$serverUrl/${GET_EXPERIMENTS_REST_PATH}")
             .build()
         
         val response = httpClient.newCall(request).execute()
@@ -79,7 +81,7 @@ class RemoteConfigManager private constructor(private val context: Context) {
     
     suspend fun getExperimentConfig(serverUrl: String, id: String): String = withContext(Dispatchers.IO) {
         val request = Request.Builder()
-            .url("$serverUrl/experiment/$id/conf")
+            .url("$serverUrl/${GET_EXPERIMENT_CONFIG_PATH}/$id")
             .build()
         
         val response = httpClient.newCall(request).execute()
@@ -285,6 +287,7 @@ class RemoteConfigManager private constructor(private val context: Context) {
         private const val PREFS_NAME = "remote_config"
         private const val KEY_RAW_YAML = "raw_yaml"
         private const val KEY_LAST_UPDATE = "last_update"
+        private const val GET_EXPERIMENT_CONFIG_PATH = "config/experiment"
         
         @Volatile
         private var INSTANCE: RemoteConfigManager? = null

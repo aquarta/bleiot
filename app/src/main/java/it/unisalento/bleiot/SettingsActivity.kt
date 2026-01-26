@@ -161,19 +161,19 @@ fun SettingsScreen(
     var expanded by remember { mutableStateOf(false) }
 
     // Fetch experiments when the screen is first composed
-    LaunchedEffect(Unit) {
-        scope.launch {
-            try {
-                val experiments = remoteConfigManager.getExperiments(experimentServerUrl)
-                val selectedId = experimentSettings.getSelectedExperimentId()
-                if (selectedId != "None") {
-                    selectedExperiment = experiments.find { it.id == selectedId }
-                }
-            } catch (e: Exception) {
-                // Handle error
-            }
-        }
-    }
+    // LaunchedEffect(Unit) {
+    //     scope.launch {
+    //         try {
+    //             val experiments = remoteConfigManager.getExperiments(experimentServerUrl)
+    //             val selectedId = experimentSettings.getSelectedExperimentId()
+    //             if (selectedId != "None") {
+    //                 selectedExperiment = experiments.find { it.id == selectedId }
+    //             }
+    //         } catch (e: Exception) {
+    //             // Handle error
+    //         }
+    //     }
+    // }
     
     // 1. Create the scroll state
     val scrollState = rememberScrollState()
@@ -224,9 +224,10 @@ fun SettingsScreen(
                                 experimentSettings.saveExperimentServerUrl(experimentServerUrl)
                                 scope.launch {
                                     try {
-                                        val experiments = remoteConfigManager.getExperiments(experimentServerUrl)
+                                        experiments = remoteConfigManager.getExperiments(experimentServerUrl)
                                     } catch (e: Exception) {
                                         // Handle error
+                                        Log.e("SettingsScreen", "Error fetching experiments", e)
                                     }
                                 }
                             },
