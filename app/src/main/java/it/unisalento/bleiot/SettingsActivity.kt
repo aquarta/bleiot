@@ -142,7 +142,7 @@ fun SettingsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val mqttSettings = remember { MqttSettings.getInstance(context) }
-    val remoteConfigManager = remember { RemoteConfigManager.getInstance(context) }
+    val experimentSettings = remember { ExperimentSettings.getInstance(context) }
     
     var mqttConfig by remember { mutableStateOf(mqttSettings.getMqttConfig()) }
     var serverText by remember { mutableStateOf(mqttConfig.server) }
@@ -155,23 +155,25 @@ fun SettingsScreen(
     var isDownloadingConfig by remember { mutableStateOf(false) }
     var lastUpdateTime by remember { mutableStateOf(remoteConfigManager.getLastUpdateTime()) }
     
-    var experimentServerUrl by remember { mutableStateOf("http://127.0.0.1:5001") }
+    var experimentServerUrl by remember { mutableStateOf(experimentSettings.getExperimentServerUrl()) }
     var experiments by remember { mutableStateOf<List<Experiment>>(emptyList()) }
     var selectedExperiment by remember { mutableStateOf<Experiment?>(null) }
     var expanded by remember { mutableStateOf(false) }
 
     // Fetch experiments when the screen is first composed
-//    LaunchedEffect(Unit) {
-//        scope.launch {
-//            try {
-//                val response = remoteConfigManager.getExperiments(experimentServerUrl)
-//                experiments = listOf(response)
-//            } catch (e: Exception) {
-//                // Handle error
-//                Log.e("SettingsScreen", "Error fetching experiments", e)
-//            }
-//        }
-//    }
+    LaunchedEffect(Unit) {
+        scope.launch {
+            try {
+                val experiments = remoteConfigManager.getExperiments(experimentServerUrl)
+                val selectedId = experimentSettings.getSelectedExperimentId()
+                if (selectedId != "None") {
+                    selectedExperiment = experiments.find { it.id == selectedId }
+                }
+            } catch (e: Exception) {
+                // Handle error
+            }
+        }
+    }
     
     // 1. Create the scroll state
     val scrollState = rememberScrollState()
@@ -219,13 +221,12 @@ fun SettingsScreen(
                         )
                         Button(
                             onClick = {
+                                experimentSettings.saveExperimentServerUrl(experimentServerUrl)
                                 scope.launch {
                                     try {
-                                        val response = remoteConfigManager.getExperiments(experimentServerUrl)
-                                        experiments = response
+                                        val experiments = remoteConfigManager.getExperiments(experimentServerUrl)
                                     } catch (e: Exception) {
                                         // Handle error
-                                        Log.e("SettingsScreen", "Error fetching experiments", e)
                                     }
                                 }
                             },
@@ -263,6 +264,7 @@ fun SettingsScreen(
                                         text = { Text(experiment.id) },
                                         onClick = {
                                             selectedExperiment = experiment
+                                            experimentSettings.saveSelectedExperimentId(experiment.id)
                                             expanded = false
                                         }
                                     )
