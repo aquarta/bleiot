@@ -42,7 +42,7 @@ import kotlinx.coroutines.launch
 private val serviceScope = CoroutineScope(Dispatchers.IO)
 private const val CCCD = "00002902-0000-1000-8000-00805f9b34fb"
 
-class BleAndMqttService : Service(), MqttCallback {
+class BleAndMqttService : Service(), MqttCallbackExtended {
     private val TAG = "BleAndMqttService"
     private val NOTIFICATION_ID = 1
     private val CHANNEL_ID = "ble_mqtt_service_channel"
@@ -430,7 +430,12 @@ class BleAndMqttService : Service(), MqttCallback {
         Log.e(TAG, "MQTT connection lost: ${cause?.message}", cause)
         updateStatus("MQTT connection lost: ${cause?.message}")
         // Attempt to reconnect if needed, or notify UI
-        reconnectMqttClient()
+        //reconnectMqttClient()
+    }
+
+    override fun connectComplete(reconnect: Boolean, serverURI: String?){
+        Log.i(TAG, "MQTT connection complete: from reconnect? $reconnect $serverURI")
+        updateStatus("MQTT connection complete: from reconnect? $reconnect $serverURI")
     }
 
     override fun messageArrived(topic: String?, message: MqttMessage?) {
@@ -574,7 +579,7 @@ class BleAndMqttService : Service(), MqttCallback {
                     Log.d(TAG, "Published to MQTT: $message")
                 } else {
                     Log.w(TAG, "MQTT client not connected, attempting to reconnect")
-//                    setupMqttClient()
+                    //reconnectMqttClient()
 //                    // Try again after reconnection attempt
 //                    if (mqttClient?.isConnected == true) {
 //                        val mqttMessage = MqttMessage(message.toByteArray())
