@@ -117,6 +117,11 @@ devices:
           - uuid: "00002a19-0000-1000-8000-00805f9b34fb"
             name: "Battery Level"
             mqttTopic: "ble/battery"
+            structParser:
+              endianness: "LITTLE_ENDIAN"
+              fields:
+                - name: "battery_level"
+                  type: "byte"
       - uuid: "00001809-0000-1000-8000-00805f9b34fb"
         name: "Temperature Service"
         characteristics:
@@ -206,7 +211,7 @@ devices:
             structParser:
               endianness: "LITTLE_ENDIAN"
               fields:
-                - name: "stimestamp"
+                - name: "stimestamp"jsonPayloadParser
                   type: "ushort"
                 - name: "accx"
                   type: "short"
