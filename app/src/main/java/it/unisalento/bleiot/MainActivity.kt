@@ -28,9 +28,27 @@ class MainActivity : ComponentActivity() {
     ) { permissions ->
         if (permissions.entries.all { it.value }) {
             // All permissions granted
-            viewModel.startScan()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                    requestBackgroundLocationPermission.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                } else {
+                    viewModel.startScan()
+                }
+            } else {
+                viewModel.startScan()
+            }
         } else {
             viewModel.updateStatus("Permissions denied")
+        }
+    }
+
+    private val requestBackgroundLocationPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.startScan()
+        } else {
+            viewModel.updateStatus("Background location permission denied")
         }
     }
 
@@ -125,17 +143,28 @@ class MainActivity : ComponentActivity() {
     private fun checkPermissionsAndStartScan() {
         val permissionsToRequest = mutableListOf<String>()
 
+        // For Android 13+ (API 33+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
         // For Android 12+ (API 31+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             permissionsToRequest.add(Manifest.permission.BLUETOOTH_SCAN)
             permissionsToRequest.add(Manifest.permission.BLUETOOTH_CONNECT)
         }
 
+        // For Android 10+ (API 29+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            permissionsToRequest.add(Manifest.permission.ACCESS_FINE_LOCATION)
+            permissionsToRequest.add(Manifest.permission.ACCESS_COARSE_LOCATION)
+        }
+
         // For older Android versions
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
             permissionsToRequest.add(Manifest.permission.BLUETOOTH)
-            permissionsToRequest.add(Manifest.permission.ACCESS_FINE_LOCATION)
-            permissionsToRequest.add(Manifest.permission.ACCESS_COARSE_LOCATION)
+            //permissionsToRequest.add(Manifest.permission.ACCESS_FINE_LOCATION)
+            //permissionsToRequest.add(Manifest.permission.ACCESS_COARSE_LOCATION)
         }
 
         // Request permissions if needed
