@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
     <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">ritchie</domain>
+        <domain includeSubdomains="true">fritz.box</domain>
     </domain-config>
 </network-security-config>
