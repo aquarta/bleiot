@@ -42,7 +42,7 @@ import kotlinx.coroutines.launch
 private val serviceScope = CoroutineScope(Dispatchers.IO)
 private const val CCCD = "00002902-0000-1000-8000-00805f9b34fb"
 
-class BleAndMqttService : Service() {
+class BleAndMqttService : Service(), MqttCallback {
     private val TAG = "BleAndMqttService"
     private val NOTIFICATION_ID = 1
     private val CHANNEL_ID = "ble_mqtt_service_channel"
@@ -426,6 +426,23 @@ class BleAndMqttService : Service() {
 
     }
 
+    override fun connectionLost(cause: Throwable?) {
+        Log.e(TAG, "MQTT connection lost: ${cause?.message}", cause)
+        updateStatus("MQTT connection lost: ${cause?.message}")
+        // Attempt to reconnect if needed, or notify UI
+        reconnectMqttClient()
+    }
+
+    override fun messageArrived(topic: String?, message: MqttMessage?) {
+        Log.i(TAG, "MQTT message arrived: Topic=$topic, Message=${message.toString()}")
+        // Handle incoming messages if necessary
+    }
+
+    override fun deliveryComplete(token: IMqttDeliveryToken?) {
+        Log.d(TAG, "MQTT message delivered: Token=${token?.messageId}")
+        // Handle message delivery completion if necessary
+    }
+
     override fun onBind(intent: Intent): IBinder {
         return binder
     }
@@ -531,6 +548,7 @@ class BleAndMqttService : Service() {
             }
             options.isAutomaticReconnect = true
             options.isCleanSession = true
+            mqttClient?.setCallback(this) // Set the callback here
             Log.i(TAG, "Connect MQTT client:  ${config.server}:${config.port} ${options.userName}")
             mqttClient?.connect(options)
             updateStatus("Connected to MQTT broker at ${config.server}:${config.port} ${options.userName}")
@@ -556,16 +574,16 @@ class BleAndMqttService : Service() {
                     Log.d(TAG, "Published to MQTT: $message")
                 } else {
                     Log.w(TAG, "MQTT client not connected, attempting to reconnect")
-                    setupMqttClient()
-                    // Try again after reconnection attempt
-                    if (mqttClient?.isConnected == true) {
-                        val mqttMessage = MqttMessage(message.toByteArray())
-                        mqttMessage.qos = 1
-                        mqttClient?.publish(topic, mqttMessage)
-                    }
+//                    setupMqttClient()
+//                    // Try again after reconnection attempt
+//                    if (mqttClient?.isConnected == true) {
+//                        val mqttMessage = MqttMessage(message.toByteArray())
+//                        mqttMessage.qos = 1
+//                        mqttClient?.publish(topic, mqttMessage)
+//                    }
                 }
             } catch (e: MqttException) {
-                reconnectMqttClient();
+                //reconnectMqttClient();
                 Log.e(TAG, "Error publishing to MQTT: ${e.message}")
             }
         }
