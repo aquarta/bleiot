@@ -16,11 +16,15 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.core.app.ActivityCompat
+import dagger.hilt.android.AndroidEntryPoint
 import it.unisalento.bleiot.ui.theme.BleNotificationTheme
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     private val viewModel: BleViewModel by viewModels()
+    @Inject lateinit var deviceConfigManager: DeviceConfigurationManager
 
     // Request for Bluetooth permissions
     private val requestMultiplePermissions = registerForActivityResult(
@@ -72,9 +76,6 @@ class MainActivity : ComponentActivity() {
 
         // Initialize device configuration early
         initializeDeviceConfiguration()
-
-        // Initialize the ViewModel with context
-        viewModel.initialize(this)
 
         // Start and bind to the service
         startAndBindService()
@@ -177,7 +178,6 @@ class MainActivity : ComponentActivity() {
 
     private fun initializeDeviceConfiguration() {
         try {
-            val deviceConfigManager = DeviceConfigurationManager.getInstance(this)
             val existingConfig = deviceConfigManager.getDeviceConfiguration()
 
             if (existingConfig == null) {

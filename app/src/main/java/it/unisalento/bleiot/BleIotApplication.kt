@@ -2,9 +2,14 @@ package it.unisalento.bleiot
 
 import android.app.Application
 import android.util.Log
+import dagger.hilt.android.HiltAndroidApp
+import javax.inject.Inject
 
+@HiltAndroidApp
 class BleIotApplication : Application() {
     private val TAG = "BleIotApplication"
+
+    @Inject lateinit var deviceConfigManager: DeviceConfigurationManager
 
     override fun onCreate() {
         super.onCreate()
@@ -15,8 +20,6 @@ class BleIotApplication : Application() {
 
     private fun initializeDeviceConfiguration() {
         try {
-            val deviceConfigManager = DeviceConfigurationManager.getInstance(this)
-
             // Load configuration from storage or create default if none exists
             val existingConfig = deviceConfigManager.getDeviceConfiguration()
 

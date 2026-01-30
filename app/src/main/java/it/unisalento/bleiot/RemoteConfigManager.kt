@@ -5,7 +5,7 @@ import android.util.Log
 import it.unisalento.bleiot.Experiment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.*
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.yaml.snakeyaml.Yaml
@@ -13,16 +13,33 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 import kotlin.Result.Companion.failure
 
-class RemoteConfigManager private constructor(private val context: Context) {
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
+import javax.inject.Singleton
+
+@Singleton
+class RemoteConfigManager @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val deviceConfigManager: DeviceConfigurationManager
+) {
+    private val TAG = "RemoteConfigManager"
     private val GET_EXPERIMENTS_REST_PATH = "config/experiments"
+    private val GET_EXPERIMENT_CONFIG_PATH = "config/experiment"
+    private val KEY_RAW_YAML = "raw_yaml"
+    private val KEY_LAST_UPDATE = "last_update"
+    private val PREFS_NAME = "remote_config"
 
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
     
-    private val deviceConfigManager = DeviceConfigurationManager.getInstance(context)
     private val yaml = Yaml()
+    private val json = Json { 
+        ignoreUnknownKeys = true 
+        isLenient = true
+        encodeDefaults = true
+    }
     
     suspend fun getExperiments(serverUrl: String): List<Experiment> = withContext(Dispatchers.IO) {
         val request = Request.Builder()
@@ -35,267 +52,84 @@ class RemoteConfigManager private constructor(private val context: Context) {
             Log.e(TAG,"HTTP ${response.code}: ${response.message}")
             throw IOException("HTTP ${response.code}: ${response.message}")
         }
-        Log.d(TAG,"HTTP ${response.code}")
-        val json = response.body?.string() ?: throw IOException("Empty response body")
-        
-        return@withContext Json.decodeFromString<List<Experiment>>(json)
+        val jsonStr = response.body?.string() ?: throw IOException("Empty response body")
+        return@withContext json.decodeFromString<List<Experiment>>(jsonStr)
     }
 
     suspend fun downloadAndSaveConfig(configUrl: String): Result<String> = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "Downloading config from: $configUrl")
-            
-            val request = Request.Builder()
-                .url(configUrl)
-                .build()
-                
+            val request = Request.Builder().url(configUrl).build()
             val response = httpClient.newCall(request).execute()
             
-            if (!response.isSuccessful) {
-                return@withContext failure(IOException("HTTP ${response.code}: ${response.message}"))
-            }
+            if (!response.isSuccessful) return@withContext failure(IOException("HTTP ${response.code}"))
             
-            val yamlContent = response.body?.string()
-                ?: return@withContext failure(IOException("Empty response body"))
+            val yamlContent = response.body?.string() ?: return@withContext failure(IOException("Empty body"))
+            val parsedConfig = parseYamlConfig(yamlContent) ?: return@withContext failure(IOException("Parse failed"))
             
-            Log.d(TAG, "Downloaded YAML content (${yamlContent.length} chars)")
-            
-            // Parse YAML
-            val parsedConfig = parseYamlConfig(yamlContent)
-                ?: return@withContext failure(IOException("Failed to parse YAML"))
-            
-            // Save to local storage
             deviceConfigManager.saveConfiguration(parsedConfig)
-            
-            // Also save raw YAML for backup
             saveRawYaml(yamlContent)
             
-            Log.i(TAG, "Config downloaded and saved successfully. Found ${parsedConfig.devices.size} devices")
-            Result.success("Config downloaded successfully. Found ${parsedConfig.devices.size} devices.")
-            
+            Result.success("Config updated: ${parsedConfig.devices.size} devices")
         } catch (e: Exception) {
-            Log.e(TAG, "Error downloading config", e)
+            Log.e(TAG, "Download error", e)
             failure(e)
         }
     }
-    
-    suspend fun getExperimentConfig(serverUrl: String, id: String): String = withContext(Dispatchers.IO) {
-        val request = Request.Builder()
-            .url("$serverUrl/${GET_EXPERIMENT_CONFIG_PATH}/$id")
-            .build()
-        
-        val response = httpClient.newCall(request).execute()
-        
-        if (!response.isSuccessful) {
-            Log.e(TAG,"HTTP ${response.code}: ${response.message}")
-            throw IOException("HTTP ${response.code}: ${response.message}")
-        }
-        Log.d(TAG,"HTTP ${response.code}")
-        val body = response.body?.string() ?: throw IOException("Empty response body")
-        // Parse YAML
-        val parsedConfig = parseYamlConfig(body)
-            ?: return@withContext ""
 
-
-        // Save to local storage
-        deviceConfigManager.saveConfiguration(parsedConfig)
-
-        // Also save raw YAML for backup
-        saveRawYaml(body)
-
-
-        return@withContext body
-    }
-    
     private fun parseYamlConfig(yamlContent: String): DeviceConfiguration? {
         return try {
             val yamlMap = yaml.load<Map<String, Any>>(yamlContent)
-            
-            val devices = mutableMapOf<String, DeviceInfo>()
-            val dataTypes = mutableMapOf<String, DataTypeInfo>()
-            
-            // Parse devices
-            (yamlMap["devices"] as? Map<String, Any>)?.forEach { (deviceKey, deviceData) ->
-                val deviceMap = deviceData as? Map<String, Any> ?: return@forEach
-                val deviceInfo = parseDeviceInfo(deviceMap)
-                if (deviceInfo != null) {
-                    devices[deviceKey] = deviceInfo
-                }
-            }
-            
-            // Parse data types
-            (yamlMap["dataTypes"] as? Map<String, Any>)?.forEach { (typeKey, typeData) ->
-                val typeMap = typeData as? Map<String, Any> ?: return@forEach
-                val dataTypeInfo = parseDataTypeInfo(typeMap)
-                if (dataTypeInfo != null) {
-                    dataTypes[typeKey] = dataTypeInfo
-                }
-            }
-            
-            DeviceConfiguration(devices, dataTypes)
-            
+            val jsonElement = valueToJsonElement(yamlMap)
+            json.decodeFromJsonElement<DeviceConfiguration>(jsonElement)
         } catch (e: Exception) {
-            Log.e(TAG, "Error parsing YAML", e)
+            Log.e(TAG, "YAML parse error", e)
             null
         }
     }
 
-    private fun parseDeviceInfo(deviceMap: Map<String, Any>): DeviceInfo? {
-        return try {
-            val name = deviceMap["name"] as? String ?: return null
-            val shortName = deviceMap["shortName"] as? String ?: name
-            val servicesList = deviceMap["services"] as? List<Map<String, Any>> ?: emptyList()
-
-
-            // 1. Get movesense_whiteboard as a MAP, not a List
-            val movesenseWhiteboardMap = deviceMap["movesense_whiteboard"] as? Map<String, Any>
-
-            // 2. Extract the "measures" list from that map
-            val measuresList = movesenseWhiteboardMap?.get("measures") as? List<Map<String, Any>> ?: emptyList()
-
-            // 3. Map the measures list to your objects
-            val movesenseWhiteboard: List<WhiteboardMeasure> = measuresList.mapNotNull { measureMap ->
-                parseWhiteBoardMeasureInfo(measureMap)
-            }
-
-            val services = servicesList.mapNotNull { serviceMap ->
-                parseServiceInfo(serviceMap)
-            }
-
-            DeviceInfo(name, shortName, services, movesenseWhiteboard)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error parsing device info", e)
-            null
+    private fun valueToJsonElement(value: Any?): JsonElement {
+        return when (value) {
+            null -> JsonNull
+            is Boolean -> JsonPrimitive(value)
+            is Number -> JsonPrimitive(value)
+            is String -> JsonPrimitive(value)
+            is Map<*, *> -> JsonObject(value.map { it.key.toString() to valueToJsonElement(it.value) }.toMap())
+            is List<*> -> JsonArray(value.map { valueToJsonElement(it) })
+            else -> JsonPrimitive(value.toString())
         }
     }
 
-
-
-    private fun parseWhiteBoardMeasureInfo(measureMap: Map<String, Any>): WhiteboardMeasure? {
-        return try {
-            val name = measureMap["name"] as? String ?: return null
-            val methods = measureMap["methods"] as? List<String> ?: emptyList()
-            val path = measureMap["path"] as? String ?: return null
-            val mqttTopic = measureMap["mqttTopic"] as? String ?: return null
-
-            WhiteboardMeasure(name, methods, path, mqttTopic)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error parsing service info", e)
-            null
-        }
-
-    }
-    private fun parseServiceInfo(serviceMap: Map<String, Any>): ServiceInfo? {
-        return try {
-            val uuid = serviceMap["uuid"] as? String ?: return null
-            val name = serviceMap["name"] as? String ?: "Unknown Service"
-            val characteristicsList = serviceMap["characteristics"] as? List<Map<String, Any>> ?: emptyList()
+    suspend fun getExperimentConfig(serverUrl: String, id: String): String = withContext(Dispatchers.IO) {
+        try {
+            val request = Request.Builder().url("$serverUrl/$GET_EXPERIMENT_CONFIG_PATH/$id").build()
+            val response = httpClient.newCall(request).execute()
+            if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
             
-            val characteristics = characteristicsList.mapNotNull { charMap ->
-                parseCharacteristicInfo(charMap)
+            val body = response.body?.string() ?: ""
+            parseYamlConfig(body)?.let {
+                deviceConfigManager.saveConfiguration(it)
+                saveRawYaml(body)
             }
-            
-            ServiceInfo(uuid, name, characteristics)
+            body
         } catch (e: Exception) {
-            Log.e(TAG, "Error parsing service info", e)
-            null
-        }
-    }
-
-    private fun parseCharacteristicInfo(charMap: Map<String, Any>): CharacteristicInfo? {
-        return try {val uuid = charMap["uuid"] as? String ?: return null
-            val name = charMap["name"] as? String ?: "Unknown Characteristic"
-            val dataType = charMap["dataType"] as? String
-            val mqttTopic = charMap["mqttTopic"] as? String ?: "ble/data"
-            val customParser = charMap["customParser"] as? String
-
-            // FIX: Get the map, then convert it to the object using a helper function
-            val structParserMap = charMap["structParser"] as? Map<String, Any>
-            val structParserConfig = if (structParserMap != null) {
-                parseStructParserConfig(structParserMap)
-            } else {
-                null
-            }
-
-            CharacteristicInfo(uuid, name, dataType, mqttTopic, customParser, structParserConfig)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error parsing characteristic info", e)
-            null
-        }
-    }
-
-    private fun parseStructParserConfig(map: Map<String, Any>): StructParserConfig? {
-        return try {
-            val endianness = map["endianness"] as? String ?: "LITTLE_ENDIAN"
-
-            // Parse the fields list
-            val rawFields = map["fields"] as? List<Map<String, Any>> ?: emptyList()
-
-            val fields = rawFields.map { fieldMap ->
-                StructField(
-                    name = fieldMap["name"] as? String ?: "unknown",
-                    type = fieldMap["type"] as? String ?: "byte"
-                )
-            }
-
-            StructParserConfig(endianness, fields)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error parsing struct parser config", e)
-            null
-        }
-    }
-
-
-
-    private fun parseDataTypeInfo(typeMap: Map<String, Any>): DataTypeInfo? {
-        return try {
-            val size = typeMap["size"] as? String ?: return null
-            val conversion = typeMap["conversion"] as? String ?: return null
-            val description = typeMap["description"] as? String
-            
-            DataTypeInfo(size, conversion, description)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error parsing data type info", e)
-            null
+            Log.e(TAG, "Experiment config error", e)
+            ""
         }
     }
     
     private fun saveRawYaml(yamlContent: String) {
-        try {
-            val sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            sharedPreferences.edit()
-                .putString(KEY_RAW_YAML, yamlContent)
-                .putLong(KEY_LAST_UPDATE, System.currentTimeMillis())
-                .apply()
-        } catch (e: Exception) {
-            Log.e(TAG, "Error saving raw YAML", e)
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString(KEY_RAW_YAML, yamlContent)
+            .putLong(KEY_LAST_UPDATE, System.currentTimeMillis())
+            .apply()
+    }
+    
+    fun getLastUpdateTime(): Long = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getLong(KEY_LAST_UPDATE, 0)
+        fun getRawYaml(): String? = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getString(KEY_RAW_YAML, null)
+        
+        companion object {
+            private const val TAG = "RemoteConfigManager"
+            private const val GET_EXPERIMENT_CONFIG_PATH = "config/experiment"
         }
     }
     
-    fun getLastUpdateTime(): Long {
-        val sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return sharedPreferences.getLong(KEY_LAST_UPDATE, 0)
-    }
-    
-    fun getRawYaml(): String? {
-        val sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return sharedPreferences.getString(KEY_RAW_YAML, null)
-    }
-    
-    companion object {
-        private const val TAG = "RemoteConfigManager"
-        private const val PREFS_NAME = "remote_config"
-        private const val KEY_RAW_YAML = "raw_yaml"
-        private const val KEY_LAST_UPDATE = "last_update"
-        private const val GET_EXPERIMENT_CONFIG_PATH = "config/experiment"
-        
-        @Volatile
-        private var INSTANCE: RemoteConfigManager? = null
-        
-        fun getInstance(context: Context): RemoteConfigManager {
-            return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: RemoteConfigManager(context).also { INSTANCE = it }
-            }
-        }
-    }
-}

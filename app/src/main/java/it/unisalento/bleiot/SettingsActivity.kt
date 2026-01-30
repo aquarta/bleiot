@@ -33,12 +33,16 @@ import android.util.Log
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import it.unisalento.bleiot.Experiment
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class SettingsActivity : ComponentActivity() {
     
     private var bleService: BleAndMqttService? = null
     private var serviceBound = false
-    private val remoteConfigManager by lazy { RemoteConfigManager.getInstance(this) }
+    @Inject lateinit var remoteConfigManager: RemoteConfigManager
+    @Inject lateinit var deviceConfigManager: DeviceConfigurationManager
     
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
@@ -513,12 +517,3 @@ fun SettingsScreen(
     }
 }
 
-@Preview(showBackground = true)
-@Composable
-fun SettingsScreenPreview() {
-    BleNotificationTheme {
-        SettingsScreen(
-            remoteConfigManager = RemoteConfigManager.getInstance(LocalContext.current)
-        )
-    }
-}
