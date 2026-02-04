@@ -4,6 +4,8 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     id("com.xcporter.metaview") version "0.0.6"
+    alias(libs.plugins.hilt)
+    kotlin("kapt")
 }
 
 android {
@@ -22,7 +24,6 @@ android {
 
     signingConfigs {
         create("release") {
-            // TODO: Replace with your actual keystore details.
             // It's recommended to load these from a local.properties file instead of hardcoding.
             // Example:
             // storeFile = file(project.properties["releaseStoreFile"] as String)
@@ -92,6 +93,10 @@ dependencies {
     // HTTP client for downloading config
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation(libs.kotlinx.serialization.json)
+
+    // Hilt
+    implementation(libs.hilt.android)
+    kapt(libs.hilt.compiler)
 
     testImplementation(libs.junit)
     
