@@ -85,7 +85,7 @@ class MainActivity : ComponentActivity() {
                 MainScreenWithMenu(
                     uiState = viewModel.uiState,
                     onScanButtonClick = {
-                        if (viewModel.uiState.value.scanButtonText == "Start Scan") {
+                        if (viewModel.uiState.value.scanButtonText == "Start Scan" || viewModel.uiState.value.scanButtonText == "Inizia Esperimento") {
                             checkPermissionsAndStartScan()
                         } else {
                             viewModel.stopScan()

@@ -281,10 +281,6 @@ class BleViewModel @Inject constructor(
 }
 
 
-
-
-
-
 // Data class to hold UI state
 data class BleUiState(
     val statusText: String = "Not scanning",

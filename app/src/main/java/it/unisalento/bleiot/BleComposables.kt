@@ -273,10 +273,7 @@ fun DeviceListItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = deviceName,
-                    fontWeight = FontWeight.Bold
-                )
+                
 
                 if (isConnected) {
                     Row {
@@ -321,8 +318,19 @@ fun DeviceListItem(
                     }
                 }
             }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                        text = deviceName,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+            }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(3.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -374,7 +382,7 @@ fun DeviceListItem(
                     TextField(
                         value = textFieldValue,
                         onValueChange = { textFieldValue = it },
-                        label = { Text("APP_TAG_NAME") },
+                        label = { Text("APP_TAG_NAME", fontSize = 12.sp) },
                         modifier = Modifier.fillMaxWidth()
                     )
 
