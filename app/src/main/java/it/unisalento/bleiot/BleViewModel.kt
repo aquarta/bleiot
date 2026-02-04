@@ -289,7 +289,7 @@ class BleViewModel @Inject constructor(
 data class BleUiState(
     val statusText: String = "Not scanning",
     val dataText: String = "No data received",
-    val scanButtonText: String = "Start Scan",
+    val scanButtonText: String = "Inizia Esperimento",
     val devicesList: List<BleDeviceInfo> = emptyList(),
     val connectedDeviceAddresses: Set<String> = emptySet()
 )
