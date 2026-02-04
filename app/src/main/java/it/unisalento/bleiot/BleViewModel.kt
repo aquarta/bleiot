@@ -45,7 +45,8 @@ import javax.inject.Inject
 @HiltViewModel
 class BleViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
-    private val repository: BleRepository
+    private val repository: BleRepository,
+    private val deviceConfigManager: DeviceConfigurationManager
 ) : ViewModel() {
     private val TAG = "BleViewModel"
     private val SCAN_PERIOD: Long = 10000 // Scan for 10 seconds
@@ -59,6 +60,8 @@ class BleViewModel @Inject constructor(
     // UI State
     private val _uiState = MutableStateFlow(BleUiState())
     val uiState: StateFlow<BleUiState> = _uiState.asStateFlow()
+
+    private val _showOnlyKnownDevices = MutableStateFlow(false)
 
     // Service and context references
     private var bleAndMqttService: BleAndMqttService? = null
@@ -76,8 +79,9 @@ class BleViewModel @Inject constructor(
         combine(
             repository.scannedDevices,
             repository.statusText,
-            repository.latestData
-        ) { devices, status, data ->
+            repository.latestData,
+            _showOnlyKnownDevices
+        ) { devices, status, data, showOnlyKnown ->
             val hasConnectPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 ActivityCompat.checkSelfPermission(appContext, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
             } else true
@@ -86,10 +90,23 @@ class BleViewModel @Inject constructor(
                 currentState.copy(
                     statusText = status,
                     dataText = data,
+                    showOnlyKnownDevices = showOnlyKnown,
                     connectedDeviceAddresses = devices.filter { it.value.isConnected }.keys,
-                    devicesList = devices.values.map { deviceState ->
+                    devicesList = devices.values
+                        .filter { deviceState ->
+                            if (showOnlyKnown) {
+                                deviceConfigManager.findDeviceConfig(deviceState.name) != null
+                            } else {
+                                true
+                            }
+                        }
+                        .map { deviceState ->
+                        val displayName = if (hasConnectPermission) {
+                            if (deviceState.name == "Unknown Device" || deviceState.name.isEmpty()) "<No Name>" else deviceState.name
+                        } else "Unknown Device"
+
                         BleDeviceInfo(
-                            name = if (hasConnectPermission) deviceState.name else "Unknown Device",
+                            name = displayName,
                             address = deviceState.address,
                             deviceT = mapToTrans(deviceState),
                             txPhy = deviceState.txPhy,
@@ -147,6 +164,10 @@ class BleViewModel @Inject constructor(
                 currentState
             }
         }
+    }
+
+    fun toggleShowOnlyKnownDevices() {
+        _showOnlyKnownDevices.value = !_showOnlyKnownDevices.value
     }
 
     fun onScanClicked() {
@@ -285,9 +306,10 @@ class BleViewModel @Inject constructor(
 data class BleUiState(
     val statusText: String = "Not scanning",
     val dataText: String = "No data received",
-    val scanButtonText: String = "Inizia Esperimento",
+    val scanButtonText: String = "Start Scan",
     val devicesList: List<BleDeviceInfo> = emptyList(),
-    val connectedDeviceAddresses: Set<String> = emptySet()
+    val connectedDeviceAddresses: Set<String> = emptySet(),
+    val showOnlyKnownDevices: Boolean = false
 )
 
 // Data class to represent a Bluetooth device in the UI
