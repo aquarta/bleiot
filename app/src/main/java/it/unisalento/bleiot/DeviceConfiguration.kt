@@ -2,6 +2,7 @@ package it.unisalento.bleiot
 
 import it.unisalento.bleiot.BleDataParsers
 import GenericStructParser
+import android.annotation.SuppressLint
 import android.content.Context
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -40,6 +41,7 @@ data class ServiceInfo(
     val characteristics: List<CharacteristicInfo> = emptyList()
 )
 
+@SuppressLint("UnsafeOptInUsageError")
 @Serializable
 data class WhiteboardMeasure(
     val name: String,
