@@ -39,6 +39,9 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import java.util.UUID
 import javax.inject.Inject
+import org.json.JSONObject
+import org.json.JSONArray
+import org.json.JSONException
 
 private const val CCCD = "00002902-0000-1000-8000-00805f9b34fb"
 private val serviceScope = CoroutineScope(Dispatchers.IO)
@@ -58,6 +61,9 @@ class BleAndMqttService : Service() {
 
     // Wakelock
     private var wakeLock: PowerManager.WakeLock? = null
+    
+    // Subscriptions map
+    private val mSubscriptions = mutableMapOf<String, MdsSubscription>()
 
     // Binder for activity communication
     private val binder = LocalBinder()
@@ -173,6 +179,20 @@ class BleAndMqttService : Service() {
                 val charName = intent.getStringExtra(EXTRA_CHARACTERISTIC_NAME)
                 if (address != null && charName != null) disableNotifications(address, charName)
             }
+            ACTION_ENABLE_WHITEBOARD_SUBSCRIBE -> {
+                val address = intent.getStringExtra(EXTRA_DEVICE_ADDRESS)
+                val measureName = intent.getStringExtra(EXTRA_WHITEBOARD_MEASURE)
+                if (address != null && measureName != null) {
+                    enableSubscriptionForWhiteBoardMeasure(address, measureName)
+                }
+            }
+            ACTION_WHITEBOARD_UNSUBSCRIBE -> {
+                val address = intent.getStringExtra(EXTRA_DEVICE_ADDRESS)
+                val measureName = intent.getStringExtra(EXTRA_WHITEBOARD_MEASURE)
+                if (address != null && measureName != null) {
+                    disableSubscriptionForWhiteBoardMeasure(address, measureName)
+                }
+            }
         }
 
         return START_STICKY
@@ -210,6 +230,90 @@ class BleAndMqttService : Service() {
                 }
             }
         }
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    private fun enableSubscriptionForWhiteBoardMeasure(address: String, measureName: String) {
+        val gatt = bleManager.getGatt(address) ?: return
+        val whiteboardMeasure = deviceConfigManager.findMeasurePath(gatt.device.name ?: "Unknown", measureName) ?: return
+        val movesenseSerial = bleManager.getMovesenseSerial(address)
+
+        if (movesenseSerial == null) {
+            Log.w(TAG, "No serial found for Movesense device $address")
+            return
+        }
+
+        Log.i(TAG, "enableSubscriptionForWhiteBoardMeasure $whiteboardMeasure --> ${whiteboardMeasure.path}")
+        
+        if (whiteboardMeasure.methods.contains("subscribe")) {
+            val mSub = Mds.builder().build(this).subscribe(
+                "suunto://MDS/EventListener",
+                "{\"Uri\": \"${movesenseSerial}${whiteboardMeasure.path}\"}",
+                object : MdsNotificationListener {
+                    override fun onNotification(data: String) {
+                        try {
+                            val mutableData = JSONObject(data)
+                            mutableData.put("deviceName", "Movesense $movesenseSerial")
+                            mutableData.put("deviceAddress", address)
+                            mutableData.put("gatewayName", "AndroidGateway")
+                            mutableData.put("gatewayBattery", getBatteryLevel())
+
+                            if (mutableData.has("Body")) {
+                                val body = mutableData.getJSONObject("Body")
+                                if (body.has("Samples")) {
+                                    val samplesArray = body.getJSONArray("Samples")
+                                    val baseTimestamp = body.getLong("Timestamp")
+                                    val newSamplesArray = JSONArray()
+
+                                    for (i in 0 until samplesArray.length()) {
+                                        val sampleValue = samplesArray.getInt(i)
+                                        val calculatedTimestamp = baseTimestamp + (8 * i) // Assuming 125Hz approx
+                                        val sampleObj = JSONObject()
+                                        sampleObj.put("value", sampleValue)
+                                        sampleObj.put("stimestamp", calculatedTimestamp)
+                                        newSamplesArray.put(sampleObj)
+                                    }
+                                    body.put("Samples", newSamplesArray)
+                                }
+                            }
+                            
+                            val jsonString = mutableData.toString()
+                            bleRepository.updateData("$measureName: $jsonString")
+                            whiteboardMeasure.mqttTopic?.let { topic ->
+                                mqttManager.publish(topic, jsonString)
+                            }
+                        } catch (e: JSONException) {
+                            Log.e(TAG, "Error parsing JSON data: $data", e)
+                        }
+                    }
+
+                    override fun onError(error: MdsException) {
+                        Log.e(TAG, "MDS onError: $error")
+                    }
+                }
+            )
+            mSubscriptions[whiteboardMeasure.path] = mSub
+            bleRepository.updateWhiteboardSubscriptionState(address, measureName, true)
+        }
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    private fun disableSubscriptionForWhiteBoardMeasure(address: String, measureName: String) {
+        val gatt = bleManager.getGatt(address) ?: return
+        val whiteboardMeasure = deviceConfigManager.findMeasurePath(gatt.device.name ?: "Unknown", measureName) ?: return
+
+        val subscription = mSubscriptions[whiteboardMeasure.path]
+        if (subscription != null) {
+            subscription.unsubscribe()
+            mSubscriptions.remove(whiteboardMeasure.path)
+            Log.i(TAG, "Unsubscribed from whiteboard measure: $measureName")
+            bleRepository.updateWhiteboardSubscriptionState(address, measureName, false)
+        }
+    }
+
+    private fun getBatteryLevel(): Int {
+        val batteryManager = getSystemService(Context.BATTERY_SERVICE) as BatteryManager
+        return batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
     }
 
     override fun onBind(intent: Intent): IBinder = binder
