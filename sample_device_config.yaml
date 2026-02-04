@@ -21,17 +21,17 @@ devices:
               fields:
                 - name: "battery_level"
                   type: "byte"
-      - uuid: "34802252-7185-4d5d-b431-630e7050e8f0"
-        name : "Movesense GattSensorData Service"
-        characteristics:
-          # Available GattSensorData protocol measures:
-          # - ECG
-          # - IMU9
-          - uuid: "34800001-7185-4d5d-b431-630e7050e8f0"
-            name: "Movesense GSD Write Char"
-          - uuid: "34800002-7185-4d5d-b431-630e7050e8f0"
-            name: "Movesense GSD Read Char"
-            mqttTopic: "ble/movesense"
+      # - uuid: "34802252-7185-4d5d-b431-630e7050e8f0"
+      #   name : "Movesense GattSensorData Service"
+      #   characteristics:
+      #     # Available GattSensorData protocol measures:
+      #     # - ECG
+      #     # - IMU9
+      #     - uuid: "34800001-7185-4d5d-b431-630e7050e8f0"
+      #       name: "Movesense GSD Write Char"
+      #     - uuid: "34800002-7185-4d5d-b431-630e7050e8f0"
+      #       name: "Movesense GSD Read Char"
+      #       mqttTopic: "ble/movesense"
     movesense_whiteboard:
       measures:
         - name: Temp
@@ -95,17 +95,17 @@ devices:
             fields:
               - name: value
                 type: integer
-        - name: Battery
-          methods:
-            - get
-        - name: SLOG
-          path: /System/Debug/config
-          methods:
-            - get
-        - name: Led
-          methods:
-            - get
-            - put
+        # - name: Battery
+        #   methods:
+        #     - get
+        # - name: SLOG
+        #   path: /System/Debug/config
+        #   methods:
+        #     - get
+        # - name: Led
+        #   methods:
+        #     - get
+        #     - put
 
   ZephyrTemperature:
     name: "ZephyrTemperature"
@@ -167,6 +167,7 @@ devices:
                 - name: "gyroy"
                   type: "short"
                 - name: "gyroz"
+                  type: "short"
   BLPSMS005:
     name: "BLPSMS005"
     shortName: "BLPSMS005"
@@ -211,7 +212,7 @@ devices:
             structParser:
               endianness: "LITTLE_ENDIAN"
               fields:
-                - name: "stimestamp"jsonPayloadParser
+                - name: "stimestamp"
                   type: "ushort"
                 - name: "accx"
                   type: "short"
@@ -224,6 +225,7 @@ devices:
                 - name: "gyroy"
                   type: "short"
                 - name: "gyroz"
+                  type: "short"
   "BLEPnP":
     name: "BLEPnP"
     shortName: "BLEPnP"
