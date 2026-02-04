@@ -112,6 +112,26 @@ fun BleNotificationApp(
                     AppHeader()
                 }
 
+                // Filter Checkbox
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Checkbox(
+                            checked = state.showOnlyKnownDevices,
+                            onCheckedChange = { viewModel.toggleShowOnlyKnownDevices() }
+                        )
+                        Text(
+                            text = "Show only known devices",
+                            modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
+                }
+
                 // Scan button
                 item {
                     ScanButton(
@@ -318,6 +338,7 @@ fun DeviceListItem(
                     }
                 }
             }
+            Spacer(modifier = Modifier.height(3.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -325,7 +346,7 @@ fun DeviceListItem(
             ) {
                 Text(
                         text = deviceName,
-                        fontSize = 20.sp,
+                        fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )
             }
@@ -462,7 +483,7 @@ fun CharListItem(
     val context = LocalContext.current
     Column(
         modifier = Modifier.padding(start = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
         horizontalAlignment = Alignment.Start
     ) {
         for (charInfo in charInfos) {
@@ -486,7 +507,7 @@ fun CharListItem(
                             }
                             context.startService(intent)
                         },
-                        modifier = Modifier.height(32.dp)
+                        modifier = Modifier.height(28.dp)
                     ) {
                         Text("READ", fontSize = 10.sp)
                     }
