@@ -60,7 +60,9 @@ class BleViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(BleUiState())
     val uiState: StateFlow<BleUiState> = _uiState.asStateFlow()
 
-    private val _showOnlyKnownDevices = MutableStateFlow(false)
+    private val _showOnlyKnownDevices = MutableStateFlow(
+        AppConfigurationSettings.getInstance(appContext).getAppConfig().showOnlyKnownDevices
+    )
 
     // Service and context references
     private var bleAndMqttService: BleAndMqttService? = null
@@ -166,7 +168,13 @@ class BleViewModel @Inject constructor(
     }
 
     fun toggleShowOnlyKnownDevices() {
-        _showOnlyKnownDevices.value = !_showOnlyKnownDevices.value
+        val newValue = !_showOnlyKnownDevices.value
+        _showOnlyKnownDevices.value = newValue
+        
+        // Persist the change
+        val appSettings = AppConfigurationSettings.getInstance(appContext)
+        val currentConfig = appSettings.getAppConfig()
+        appSettings.saveAppConfig(currentConfig.copy(showOnlyKnownDevices = newValue))
     }
 
     fun onScanClicked() {
