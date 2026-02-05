@@ -49,7 +49,6 @@ class BleViewModel @Inject constructor(
     private val deviceConfigManager: DeviceConfigurationManager
 ) : ViewModel() {
     private val TAG = "BleViewModel"
-    private val SCAN_PERIOD: Long = 10000 // Scan for 10 seconds
 
     // BLE properties
     private var bluetoothAdapter: BluetoothAdapter? = null
@@ -95,7 +94,7 @@ class BleViewModel @Inject constructor(
                     devicesList = devices.values
                         .filter { deviceState ->
                             if (showOnlyKnown) {
-                                deviceConfigManager.findDeviceConfig(deviceState.name) != null
+                                deviceConfigManager.findDeviceConfig(deviceState.name, deviceState.address) != null
                             } else {
                                 true
                             }
@@ -203,7 +202,9 @@ class BleViewModel @Inject constructor(
             // Clear non-connected devices from repository
             repository.clearScannedDevices(uiState.value.connectedDeviceAddresses)
 
-            handler.postDelayed({ if (scanning) stopScan() }, SCAN_PERIOD)
+            val scanTime = AppConfigurationSettings.getInstance(context).getAppConfig().scanTime
+            val scanPeriod = scanTime * 1000L
+            handler.postDelayed({ if (scanning) stopScan() }, scanPeriod)
 
             scanning = true
             bluetoothLeScanner?.startScan(scanCallback)

@@ -21,6 +21,7 @@ data class DeviceConfiguration(
 data class DeviceInfo(
     val name: String,
     val shortName: String,
+    val address: String? = null,
     val services: List<ServiceInfo> = emptyList(),
     @SerialName("movesense_whiteboard")
     val whiteboardMeasuresWrapper: WhiteboardMeasuresWrapper? = null,
@@ -120,17 +121,31 @@ class DeviceConfigurationManager @Inject constructor(@ApplicationContext private
     }
     
     fun findDeviceConfig(deviceName: String?): DeviceInfo? {
+        return findDeviceConfig(deviceName, null)
+    }
+
+    fun findDeviceConfig(deviceName: String?, deviceAddress: String?): DeviceInfo? {
         val config = getDeviceConfiguration() ?: return null
-        config.devices[deviceName]?.let { return it }
-        deviceName?.let { name ->
-            config.devices.values.find { device ->
-                device.name.contains(name, ignoreCase = true) ||
-                device.shortName.contains(name, ignoreCase = true) ||
-                name.contains(device.name, ignoreCase = true) ||
-                name.contains(device.shortName, ignoreCase = true)
-            }?.let { Log.d(TAG,"Device config found $deviceName -> $it"); return it }
+        
+        // Iterate through all configured devices to find a match
+        return config.devices.values.find { deviceConfig ->
+            // 1. Name Match Logic
+            val nameMatches = deviceName != null && (
+                deviceConfig.name.contains(deviceName, ignoreCase = true) ||
+                deviceConfig.shortName.contains(deviceName, ignoreCase = true) ||
+                deviceName.contains(deviceConfig.name, ignoreCase = true) ||
+                deviceName.contains(deviceConfig.shortName, ignoreCase = true)
+            )
+            
+            // 2. Address Match Logic (only if configured)
+            val addressMatches = if (deviceConfig.address != null) {
+                deviceAddress != null && deviceConfig.address.equals(deviceAddress, ignoreCase = true)
+            } else {
+                true // Config doesn't specify address, so address doesn't matter
+            }
+
+            nameMatches && addressMatches
         }
-        return null
     }
 
     fun findWhiteboardSpecs(deviceName: String?): List<WhiteboardMeasure> {

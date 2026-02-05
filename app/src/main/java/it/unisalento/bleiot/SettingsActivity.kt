@@ -147,6 +147,8 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
     val mqttSettings = remember { MqttSettings.getInstance(context) }
     val experimentSettings = remember { ExperimentSettings.getInstance(context) }
+    val appSettings = remember { AppConfigurationSettings.getInstance(context) }
+    val appConfig = remember { appSettings.getAppConfig() }
     
     var mqttConfig by remember { mutableStateOf(mqttSettings.getMqttConfig()) }
     var serverText by remember { mutableStateOf(mqttConfig.server) }
@@ -154,6 +156,7 @@ fun SettingsScreen(
     var serverPassword by remember { mutableStateOf(mqttConfig.password) }
     var portText by remember { mutableStateOf(mqttConfig.port.toString()) }
     var configUrlText by remember { mutableStateOf(mqttSettings.getDeviceConfigUrl()) }
+    var configScanTime by remember { mutableStateOf(appConfig.scanTime.toString()) }
     var showSuccessMessage by remember { mutableStateOf(false) }
     var showConfigMessage by remember { mutableStateOf("") }
     var isDownloadingConfig by remember { mutableStateOf(false) }
@@ -480,6 +483,35 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = 8.dp)
                         )
+                    }
+                }
+            }
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    OutlinedTextField(
+                        value = configScanTime,
+                        onValueChange = { configScanTime = it },
+                        label = { Text("Scan Time (sec)") },
+                        placeholder = { Text("10") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                    )
+                    Button(
+                        onClick = {
+                            val time = configScanTime.toIntOrNull() ?: 10
+                            appSettings.saveAppConfig(BleScanConfig(scanTime = time))
+                            showSuccessMessage = true
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Save Scan Time")
                     }
                 }
             }
