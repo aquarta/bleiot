@@ -129,7 +129,7 @@ class DeviceConfigurationManager @Inject constructor(@ApplicationContext private
         
         // Iterate through all configured devices to find a match
         return config.devices.values.find { deviceConfig ->
-            // 1. Name Match Logic
+            // Name Match Logic
             val nameMatches = deviceName != null && (
                 deviceConfig.name.contains(deviceName, ignoreCase = true) ||
                 deviceConfig.shortName.contains(deviceName, ignoreCase = true) ||
@@ -137,7 +137,7 @@ class DeviceConfigurationManager @Inject constructor(@ApplicationContext private
                 deviceName.contains(deviceConfig.shortName, ignoreCase = true)
             )
             
-            // 2. Address Match Logic (only if configured)
+            // Address Match Logic (only if configured)
             val addressMatches = if (deviceConfig.address != null) {
                 deviceAddress != null && deviceConfig.address.equals(deviceAddress, ignoreCase = true)
             } else {
