@@ -64,6 +64,14 @@ class BleViewModel @Inject constructor(
         AppConfigurationSettings.getInstance(appContext).getAppConfig().showOnlyKnownDevices
     )
 
+    private val _autoConnect = MutableStateFlow(
+        AppConfigurationSettings.getInstance(appContext).getAppConfig().autoConnect
+    )
+
+    private val _autoNotify = MutableStateFlow(
+        AppConfigurationSettings.getInstance(appContext).getAppConfig().autoNotify
+    )
+
     // Service and context references
     private var bleAndMqttService: BleAndMqttService? = null
 
@@ -81,8 +89,18 @@ class BleViewModel @Inject constructor(
             repository.scannedDevices,
             repository.statusText,
             repository.latestData,
-            _showOnlyKnownDevices
-        ) { devices, status, data, showOnlyKnown ->
+            _showOnlyKnownDevices,
+            _autoConnect,
+            _autoNotify
+        ) { args ->
+            @Suppress("UNCHECKED_CAST")
+            val devices = args[0] as Map<String, BleDeviceState>
+            val status = args[1] as String
+            val data = args[2] as String
+            val showOnlyKnown = args[3] as Boolean
+            val autoConnect = args[4] as Boolean
+            val autoNotify = args[5] as Boolean
+
             val hasConnectPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 ActivityCompat.checkSelfPermission(appContext, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
             } else true
@@ -92,6 +110,8 @@ class BleViewModel @Inject constructor(
                     statusText = status,
                     dataText = data,
                     showOnlyKnownDevices = showOnlyKnown,
+                    autoConnect = autoConnect,
+                    autoNotify = autoNotify,
                     connectedDeviceAddresses = devices.filter { it.value.isConnected }.keys,
                     devicesList = devices.values
                         .filter { deviceState ->
@@ -177,6 +197,22 @@ class BleViewModel @Inject constructor(
         appSettings.saveAppConfig(currentConfig.copy(showOnlyKnownDevices = newValue))
     }
 
+    fun toggleAutoConnect() {
+        val newValue = !_autoConnect.value
+        _autoConnect.value = newValue
+        val appSettings = AppConfigurationSettings.getInstance(appContext)
+        val currentConfig = appSettings.getAppConfig()
+        appSettings.saveAppConfig(currentConfig.copy(autoConnect = newValue))
+    }
+
+    fun toggleAutoNotify() {
+        val newValue = !_autoNotify.value
+        _autoNotify.value = newValue
+        val appSettings = AppConfigurationSettings.getInstance(appContext)
+        val currentConfig = appSettings.getAppConfig()
+        appSettings.saveAppConfig(currentConfig.copy(autoNotify = newValue))
+    }
+
     fun onScanClicked() {
         if (!scanning) {
             startScan()
@@ -239,6 +275,19 @@ class BleViewModel @Inject constructor(
             super.onScanResult(callbackType, result)
             if (result.device.name != null) {
                 repository.addOrUpdateScannedDevice(result.device, result.rssi)
+
+                // Auto Connect Logic
+                if (_autoConnect.value) {
+                    val device = result.device
+                    // Check if device is known
+                    val isKnown = deviceConfigManager.findDeviceConfig(device.name, device.address) != null
+                    // Check if not already connected
+                    val isConnected = repository.scannedDevices.value[device.address]?.isConnected == true
+                    
+                    if (isKnown && !isConnected) {
+                        connectToDevice(device)
+                    }
+                }
             }
         }
 
@@ -318,7 +367,9 @@ data class BleUiState(
     val scanButtonText: String = "Start Scan",
     val devicesList: List<BleDeviceInfo> = emptyList(),
     val connectedDeviceAddresses: Set<String> = emptySet(),
-    val showOnlyKnownDevices: Boolean = false
+    val showOnlyKnownDevices: Boolean = false,
+    val autoConnect: Boolean = false,
+    val autoNotify: Boolean = false
 )
 
 // Data class to represent a Bluetooth device in the UI

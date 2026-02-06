@@ -130,6 +130,20 @@ class BleAndMqttService : Service() {
                 putExtra(EXTRA_CHARACTERISTIC_NAME, name)
                 putExtra(EXTRA_CHARACTERISTIC_PROPERTIES, props)
             })
+            
+            // Auto Notify Check
+            if (AppConfigurationSettings.getInstance(this).getAppConfig().autoNotify) {
+                if ((props and BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0) {
+                     val gatt = bleManager.getGatt(address)
+                     val deviceName = gatt?.device?.name ?: "Unknown"
+                     val charInfo = deviceConfigManager.findConfChar(deviceName, name) 
+                                    ?: deviceConfigManager.findCharacteristicByUuid(name)
+                     Log.i(TAG, "Autonotify check")
+                     if (charInfo != null) {
+                         enableNotifications(address, charInfo.name)
+                     }
+                }
+            }
         }
         
         bleManager.onWhiteboardFound = { address, name ->
@@ -172,6 +186,7 @@ class BleAndMqttService : Service() {
             ACTION_ENABLE_CHAR_NOTIFY -> {
                 val address = intent.getStringExtra(EXTRA_DEVICE_ADDRESS)
                 val charName = intent.getStringExtra(EXTRA_CHARACTERISTIC_NAME)
+                Log.d(TAG, "Start notification on called with action: ${charName} ${address}")
                 if (address != null && charName != null) enableNotifications(address, charName)
             }
             ACTION_DISABLE_CHAR_NOTIFY -> {
@@ -201,7 +216,12 @@ class BleAndMqttService : Service() {
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     private fun enableNotifications(address: String, charName: String) {
         val gatt = bleManager.getGatt(address) ?: return
-        val characteristicInfo = deviceConfigManager.findConfChar(gatt.device.name ?: "Unknown", charName) ?: return
+        val characteristicInfo = deviceConfigManager.findConfChar(gatt.device.name ?: "Unknown", charName, address)
+        
+        if (characteristicInfo == null) {
+            Log.w(TAG, "Failed to find characteristic config for $charName on device $address")
+            return
+        }
         
         gatt.services.forEach { service ->
             service.characteristics.find { it.uuid.toString() == characteristicInfo.uuid }?.let { char ->
@@ -219,7 +239,7 @@ class BleAndMqttService : Service() {
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     private fun disableNotifications(address: String, charName: String) {
         val gatt = bleManager.getGatt(address) ?: return
-        val characteristicInfo = deviceConfigManager.findConfChar(gatt.device.name ?: "Unknown", charName) ?: return
+        val characteristicInfo = deviceConfigManager.findConfChar(gatt.device.name ?: "Unknown", charName, address) ?: return
         
         gatt.services.forEach { service ->
             service.characteristics.find { it.uuid.toString() == characteristicInfo.uuid }?.let { char ->

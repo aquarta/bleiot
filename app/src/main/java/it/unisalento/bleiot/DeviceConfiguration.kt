@@ -152,8 +152,8 @@ class DeviceConfigurationManager @Inject constructor(@ApplicationContext private
         return findDeviceConfig(deviceName)?.whiteboardMeasures ?: emptyList()
     }
 
-    fun findConfChar(deviceName: String, charName: String): CharacteristicInfo? {
-        val deviceConfig = findDeviceConfig(deviceName) ?: return null
+    fun findConfChar(deviceName: String, charName: String, deviceAddress: String? = null): CharacteristicInfo? {
+        val deviceConfig = findDeviceConfig(deviceName, deviceAddress) ?: return null
         deviceConfig.services.forEach { service ->
             service.characteristics.find { it.name == charName }?.let { return it }
         }
@@ -164,8 +164,8 @@ class DeviceConfigurationManager @Inject constructor(@ApplicationContext private
         return findDeviceConfig(deviceName)?.whiteboardMeasures?.find { it.name == measureName }
     }
 
-    fun findServiceAndCharacteristic(deviceName: String?, serviceUuid: String, characteristicUuid: String): Pair<ServiceInfo, CharacteristicInfo>? {
-        val deviceConfig = findDeviceConfig(deviceName) ?: return null
+    fun findServiceAndCharacteristic(deviceName: String?, serviceUuid: String, characteristicUuid: String, deviceAddress: String? = null): Pair<ServiceInfo, CharacteristicInfo>? {
+        val deviceConfig = findDeviceConfig(deviceName, deviceAddress) ?: return null
         deviceConfig.services.find { it.uuid.equals(serviceUuid, ignoreCase = true) }?.let { service ->
             service.characteristics.find { it.uuid.equals(characteristicUuid, ignoreCase = true) }?.let { char ->
                 return Pair(service, char)
