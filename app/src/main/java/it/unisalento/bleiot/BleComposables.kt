@@ -114,21 +114,53 @@ fun BleNotificationApp(
 
                 // Filter Checkbox
                 item {
-                    Row(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Checkbox(
-                            checked = state.showOnlyKnownDevices,
-                            onCheckedChange = { viewModel.toggleShowOnlyKnownDevices() }
-                        )
-                        Text(
-                            text = "Show only known devices",
-                            modifier = Modifier.padding(start = 8.dp)
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Checkbox(
+                                checked = state.showOnlyKnownDevices,
+                                onCheckedChange = { viewModel.toggleShowOnlyKnownDevices() }
+                            )
+                            Text(
+                                text = "Show only known devices",
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
+                        
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Checkbox(
+                                checked = state.autoConnect,
+                                onCheckedChange = { viewModel.toggleAutoConnect() }
+                            )
+                            Text(
+                                text = "Auto-connect to known",
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
+                        
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Checkbox(
+                                checked = state.autoNotify,
+                                onCheckedChange = { viewModel.toggleAutoNotify() }
+                            )
+                            Text(
+                                text = "Auto-notify known chars",
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
                     }
                 }
 
