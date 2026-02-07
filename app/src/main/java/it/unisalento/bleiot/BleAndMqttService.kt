@@ -62,6 +62,11 @@ class BleAndMqttService : Service() {
     // Wakelock
     private var wakeLock: PowerManager.WakeLock? = null
     
+    private val bluetoothAdapter: BluetoothAdapter? by lazy {
+        val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+        bluetoothManager.adapter
+    }
+    
     // Subscriptions map
     private val mSubscriptions = mutableMapOf<String, MdsSubscription>()
 
@@ -275,7 +280,7 @@ class BleAndMqttService : Service() {
                             val mutableData = JSONObject(data)
                             mutableData.put("deviceName", "Movesense $movesenseSerial")
                             mutableData.put("deviceAddress", address)
-                            mutableData.put("gatewayName", "AndroidGateway")
+                            mutableData.put("gatewayName", bluetoothAdapter?.name ?: "Unknown")
                             mutableData.put("gatewayBattery", getBatteryLevel())
 
                             if (mutableData.has("Body")) {
