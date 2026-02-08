@@ -148,8 +148,9 @@ class DeviceConfigurationManager @Inject constructor(@ApplicationContext private
         }
     }
 
-    fun findWhiteboardSpecs(deviceName: String?): List<WhiteboardMeasure> {
-        return findDeviceConfig(deviceName)?.whiteboardMeasures ?: emptyList()
+    fun findWhiteboardSpecs(deviceName: String?, deviceAddress: String?): List<WhiteboardMeasure> {
+        Log.d(TAG, "findWhiteboardSpecs: $deviceName ${findDeviceConfig(deviceName, deviceAddress)}")
+        return findDeviceConfig(deviceName, deviceAddress)?.whiteboardMeasures ?: emptyList()
     }
 
     fun findConfChar(deviceName: String, charName: String, deviceAddress: String? = null): CharacteristicInfo? {
@@ -160,8 +161,8 @@ class DeviceConfigurationManager @Inject constructor(@ApplicationContext private
         return null
     }
 
-    fun findMeasurePath(deviceName: String, measureName: String): WhiteboardMeasure? {
-        return findDeviceConfig(deviceName)?.whiteboardMeasures?.find { it.name == measureName }
+    fun findMeasurePath(deviceName: String, deviceAddress: String?, measureName: String): WhiteboardMeasure? {
+        return findDeviceConfig(deviceName, deviceAddress)?.whiteboardMeasures?.find { it.name == measureName }
     }
 
     fun findServiceAndCharacteristic(deviceName: String?, serviceUuid: String, characteristicUuid: String, deviceAddress: String? = null): Pair<ServiceInfo, CharacteristicInfo>? {

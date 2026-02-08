@@ -116,6 +116,7 @@ class BleViewModel @Inject constructor(
                     devicesList = devices.values
                         .filter { deviceState ->
                             if (showOnlyKnown) {
+                                Log.d(TAG, "Filtering device: ${deviceState.name} ${deviceState.address} result: ${deviceConfigManager.findDeviceConfig(deviceState.name, deviceState.address)}")
                                 deviceConfigManager.findDeviceConfig(deviceState.name, deviceState.address) != null
                             } else {
                                 true

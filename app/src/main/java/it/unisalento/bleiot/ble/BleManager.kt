@@ -274,7 +274,7 @@ class BleManager @Inject constructor(
         }
         repository.updateDeviceServices(gatt.device.address, foundChars)
 
-        val whiteboardMeasures = deviceConfigManager.findWhiteboardSpecs(deviceName)
+        val whiteboardMeasures = deviceConfigManager.findWhiteboardSpecs(deviceName, gatt.device.address)
         if (whiteboardMeasures.isNotEmpty()) {
             val whiteboardInfos = whiteboardMeasures.map { wbMeasure -> 
                 WhiteboardMeasureInfo(name = wbMeasure.name, isSubscribed = false) 

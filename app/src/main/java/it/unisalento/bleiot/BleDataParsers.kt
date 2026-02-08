@@ -3,7 +3,6 @@ package it.unisalento.bleiot
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import android.util.Log
-import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_HR_ID
 import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_IMU_ID
 import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_ECG_ID
 
@@ -40,7 +39,7 @@ object BleDataParsers {
                 when (reference.toByte()) {
                     MS_GSP_ECG_ID -> MoveSenseParseResult.Success(parseECGData(data, rate) ?: return MoveSenseParseResult.Error)
                     MS_GSP_IMU_ID -> MoveSenseParseResult.Partial
-                    MS_GSP_HR_ID -> MoveSenseParseResult.Success(parseHRData(data) ?: return MoveSenseParseResult.Error)
+                    //MS_GSP_HR_ID -> MoveSenseParseResult.Success(parseHRData(data) ?: return MoveSenseParseResult.Error)
                     else -> MoveSenseParseResult.Error
                 }
             }
@@ -107,27 +106,27 @@ object BleDataParsers {
         }
     }
 
-    private fun parseHRData(data: ByteArray): Map<String, Any>? {
-        if (data.size < 6) {
-            Log.w(TAG, "HR data too short: ${data.size} bytes")
-            return null
-        }
-        try {
-            // Extract timestamp (32-bit little-endian at offset 2)
-            val hr = getFloat32LE(data, 2)
-            val result = mapOf(
-                "type" to "HR",
-                "hr" to MS_GSP_HR_ID,
-            )
-
-            Log.i(TAG, "ER Data Parsed: ${result}")
-            return result
-        }catch (e: Exception) {
-            Log.e(TAG, "Error parsing HR data: ${e.message}")
-            return null
-        }
-
-    }
+//    private fun parseHRData(data: ByteArray): Map<String, Any>? {
+//        if (data.size < 6) {
+//            Log.w(TAG, "HR data too short: ${data.size} bytes")
+//            return null
+//        }
+//        try {
+//            // Extract timestamp (32-bit little-endian at offset 2)
+//            val hr = getFloat32LE(data, 2)
+//            val result = mapOf(
+//                "type" to "HR",
+//                "hr" to MS_GSP_HR_ID,
+//            )
+//
+//            Log.i(TAG, "ER Data Parsed: ${result}")
+//            return result
+//        }catch (e: Exception) {
+//            Log.e(TAG, "Error parsing HR data: ${e.message}")
+//            return null
+//        }
+//
+//    }
 
     /**
      * Parses ECG data from MoveSense device

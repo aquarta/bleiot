@@ -20,14 +20,9 @@ import androidx.annotation.RequiresPermission
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import com.movesense.mds.Mds
-import com.movesense.mds.MdsConnectionListener
 import com.movesense.mds.MdsException
-import com.movesense.mds.MdsHeader
 import com.movesense.mds.MdsNotificationListener
-import com.movesense.mds.MdsResponseListener
 import com.movesense.mds.MdsSubscription
-import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_COMMAND_ID
-import it.unisalento.bleiot.MoveSenseConstants.MS_GSP_HR_ID
 import it.unisalento.bleiot.ble.BleManager
 import it.unisalento.bleiot.data.SensorDataManager
 import it.unisalento.bleiot.mqtt.MqttManager
@@ -129,7 +124,7 @@ class BleAndMqttService : Service() {
             sensorDataManager.processCharacteristicData(gatt, value, serviceUuid, charUuid)
         }
         
-        bleManager.onCharacteristicFound = { address, name, props ->
+        bleManager.onCharacteristicFound = @androidx.annotation.RequiresPermission(android.Manifest.permission.BLUETOOTH_CONNECT) { address, name, props ->
             sendBroadcast(Intent(ACTION_CHARACTERISTIC_FOUND).apply {
                 putExtra(EXTRA_DEVICE_ADDRESS, address)
                 putExtra(EXTRA_CHARACTERISTIC_NAME, name)
@@ -141,9 +136,9 @@ class BleAndMqttService : Service() {
                 if ((props and BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0) {
                      val gatt = bleManager.getGatt(address)
                      val deviceName = gatt?.device?.name ?: "Unknown"
-                     val charInfo = deviceConfigManager.findConfChar(deviceName, name) 
+                     val charInfo = deviceConfigManager.findConfChar(deviceName, name, address)
                                     ?: deviceConfigManager.findCharacteristicByUuid(name)
-                     Log.i(TAG, "Autonotify check")
+                     Log.i(TAG, "Autonotify check for $name $address $props result $charInfo")
                      if (charInfo != null) {
                          enableNotifications(address, charInfo.name)
                      }
@@ -151,11 +146,19 @@ class BleAndMqttService : Service() {
             }
         }
         
-        bleManager.onWhiteboardFound = { address, name ->
+        bleManager.onWhiteboardFound = @androidx.annotation.RequiresPermission(android.Manifest.permission.BLUETOOTH_CONNECT) { address, name ->
+            Log.d(TAG, "Whiteboard found: $address, $name")
             sendBroadcast(Intent(ACTION_WHITEBOARD_FOUND).apply {
                 putExtra(EXTRA_DEVICE_ADDRESS, address)
                 putExtra(EXTRA_WHITEBOARD, name)
             })
+
+            // Auto Subscribe Check
+            if (AppConfigurationSettings.getInstance(this).getAppConfig().autoNotify) {
+                Handler(Looper.getMainLooper()).postDelayed( {
+                    enableSubscriptionForWhiteBoardMeasure(address, name)
+                }, 3000)
+            }
         }
 
         // Connect Repository flows to legacy callbacks
@@ -260,7 +263,7 @@ class BleAndMqttService : Service() {
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     private fun enableSubscriptionForWhiteBoardMeasure(address: String, measureName: String) {
         val gatt = bleManager.getGatt(address) ?: return
-        val whiteboardMeasure = deviceConfigManager.findMeasurePath(gatt.device.name ?: "Unknown", measureName) ?: return
+        val whiteboardMeasure = deviceConfigManager.findMeasurePath(gatt.device.name ?: "Unknown", address, measureName) ?: return
         val movesenseSerial = bleManager.getMovesenseSerial(address)
 
         if (movesenseSerial == null) {
@@ -325,7 +328,7 @@ class BleAndMqttService : Service() {
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     private fun disableSubscriptionForWhiteBoardMeasure(address: String, measureName: String) {
         val gatt = bleManager.getGatt(address) ?: return
-        val whiteboardMeasure = deviceConfigManager.findMeasurePath(gatt.device.name ?: "Unknown", measureName) ?: return
+        val whiteboardMeasure = deviceConfigManager.findMeasurePath(gatt.device.name ?: "Unknown", address, measureName) ?: return
 
         val subscription = mSubscriptions[whiteboardMeasure.path]
         if (subscription != null) {
