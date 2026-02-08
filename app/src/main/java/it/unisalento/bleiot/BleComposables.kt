@@ -112,6 +112,58 @@ fun BleNotificationApp(
                     AppHeader()
                 }
 
+                // Filter Checkbox
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Checkbox(
+                                checked = state.showOnlyKnownDevices,
+                                onCheckedChange = { viewModel.toggleShowOnlyKnownDevices() }
+                            )
+                            Text(
+                                text = "Show only known devices",
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
+                        
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Checkbox(
+                                checked = state.autoConnect,
+                                onCheckedChange = { viewModel.toggleAutoConnect() }
+                            )
+                            Text(
+                                text = "Auto-connect to known",
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
+                        
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Checkbox(
+                                checked = state.autoNotify,
+                                onCheckedChange = { viewModel.toggleAutoNotify() }
+                            )
+                            Text(
+                                text = "Auto-notify known chars",
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
+                    }
+                }
+
                 // Scan button
                 item {
                     ScanButton(
@@ -273,10 +325,7 @@ fun DeviceListItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = deviceName,
-                    fontWeight = FontWeight.Bold
-                )
+                
 
                 if (isConnected) {
                     Row {
@@ -321,8 +370,20 @@ fun DeviceListItem(
                     }
                 }
             }
+            Spacer(modifier = Modifier.height(3.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                        text = deviceName,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+            }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(3.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -374,7 +435,7 @@ fun DeviceListItem(
                     TextField(
                         value = textFieldValue,
                         onValueChange = { textFieldValue = it },
-                        label = { Text("APP_TAG_NAME") },
+                        label = { Text("APP_TAG_NAME", fontSize = 12.sp) },
                         modifier = Modifier.fillMaxWidth()
                     )
 
@@ -454,7 +515,7 @@ fun CharListItem(
     val context = LocalContext.current
     Column(
         modifier = Modifier.padding(start = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
         horizontalAlignment = Alignment.Start
     ) {
         for (charInfo in charInfos) {
@@ -478,7 +539,7 @@ fun CharListItem(
                             }
                             context.startService(intent)
                         },
-                        modifier = Modifier.height(32.dp)
+                        modifier = Modifier.height(28.dp)
                     ) {
                         Text("READ", fontSize = 10.sp)
                     }

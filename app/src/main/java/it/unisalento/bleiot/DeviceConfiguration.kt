@@ -1,37 +1,57 @@
 package it.unisalento.bleiot
 
+import it.unisalento.bleiot.BleDataParsers
 import GenericStructParser
+import android.annotation.SuppressLint
 import android.content.Context
 import android.util.Log
-import org.json.JSONArray
-import org.json.JSONObject
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.serialization.*
+import kotlinx.serialization.json.*
+import javax.inject.Inject
+import javax.inject.Singleton
 
+@Serializable
 data class DeviceConfiguration(
     val devices: Map<String, DeviceInfo> = emptyMap(),
     val dataTypes: Map<String, DataTypeInfo> = emptyMap()
 )
 
+@Serializable
 data class DeviceInfo(
     val name: String,
     val shortName: String,
+    val address: String? = null,
     val services: List<ServiceInfo> = emptyList(),
-    val whiteboardMeasures: List<WhiteboardMeasure> = emptyList(),
+    @SerialName("movesense_whiteboard")
+    val whiteboardMeasuresWrapper: WhiteboardMeasuresWrapper? = null,
+) {
+    val whiteboardMeasures: List<WhiteboardMeasure>
+        get() = whiteboardMeasuresWrapper?.measures ?: emptyList()
+}
+
+@Serializable
+data class WhiteboardMeasuresWrapper(
+    val measures: List<WhiteboardMeasure> = emptyList()
 )
 
+@Serializable
 data class ServiceInfo(
     val uuid: String,
     val name: String,
     val characteristics: List<CharacteristicInfo> = emptyList()
 )
 
+@SuppressLint("UnsafeOptInUsageError")
+@Serializable
 data class WhiteboardMeasure(
-
     val name: String,
     val methods: List<String> = emptyList(),
     val path: String,
     val mqttTopic: String? = null,
 )
 
+@Serializable
 data class CharacteristicInfo(
     val uuid: String,
     val name: String,
@@ -41,31 +61,34 @@ data class CharacteristicInfo(
     val structParser: StructParserConfig? = null
 )
 
-
+@Serializable
 data class DataTypeInfo(
     val size: String,
     val conversion: String,
     val description: String? = null
 )
 
-// This represents the 'structParser' section in YAML
+@Serializable
 data class StructParserConfig(
     val endianness: String = "LITTLE_ENDIAN",
     val fields: List<StructField> = emptyList()
 )
 
-// This represents a single item in the 'fields' list
+@Serializable
 data class StructField(
     val name: String,
     val type: String
 )
 
-
-
-class DeviceConfigurationManager private constructor(context: Context) {
-    private val context = context.applicationContext
+@Singleton
+class DeviceConfigurationManager @Inject constructor(@ApplicationContext private val context: Context) {
     private val sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private var currentConfig: DeviceConfiguration? = null
+    private val json = Json { 
+        ignoreUnknownKeys = true 
+        encodeDefaults = true
+        coerceInputValues = true
+    }
     
     fun getDeviceConfiguration(): DeviceConfiguration? {
         if (currentConfig == null) {
@@ -76,83 +99,77 @@ class DeviceConfigurationManager private constructor(context: Context) {
     
     fun saveConfiguration(config: DeviceConfiguration) {
         currentConfig = config
-        // Save to SharedPreferences as JSON for persistence
-        val jsonString = serializeToJson(config)
-        sharedPreferences.edit()
-            .putString(KEY_DEVICE_CONFIG, jsonString)
-            .apply()
+        try {
+            val jsonString = json.encodeToString(config)
+            sharedPreferences.edit()
+                .putString(KEY_DEVICE_CONFIG, jsonString)
+                .apply()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error saving configuration: ${e.message}")
+        }
+    }
+    
+    private fun loadConfigFromStorage() {
+        val jsonString = sharedPreferences.getString(KEY_DEVICE_CONFIG, null)
+        if (jsonString != null) {
+            try {
+                currentConfig = json.decodeFromString<DeviceConfiguration>(jsonString)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error loading configuration from storage: ${e.message}")
+            }
+        }
     }
     
     fun findDeviceConfig(deviceName: String?): DeviceInfo? {
+        return findDeviceConfig(deviceName, null)
+    }
+
+    fun findDeviceConfig(deviceName: String?, deviceAddress: String?): DeviceInfo? {
         val config = getDeviceConfiguration() ?: return null
         
-        // Try exact match first
-        config.devices[deviceName]?.let { return it }
-        
-        // Try partial match with device name
-        deviceName?.let { name ->
-            config.devices.values.find { device ->
-                device.name.contains(name, ignoreCase = true) ||
-                device.shortName.contains(name, ignoreCase = true) ||
-                name.contains(device.name, ignoreCase = true) ||
-                name.contains(device.shortName, ignoreCase = true)
-            }?.let { Log.d(TAG,"Device config found ${deviceName} --> ${it}"); return it }
-        }
-
-        return null
-    }
-
-    fun findWhiteboardSpecs(deviceName: String?): List<WhiteboardMeasure>? {
-        val deviceConfig = findDeviceConfig(deviceName) ?: return null
-        return deviceConfig.whiteboardMeasures
-
-//        for (whiteBoardMeasure in deviceConfig.whiteboardMeasures) {
-//            Log.d(TAG, "whiteBoardMeasure Pair Found:  ${deviceName} ${whiteBoardMeasure}")
-//        }
-    }
-
-    fun findConfChar(deviceName: String, charName: String ): CharacteristicInfo? {
-        val deviceConfig = findDeviceConfig(deviceName) ?: return null
-
-        for (service in deviceConfig.services) {
-            //Log.d(TAG, "See if match serviceUuid: ${serviceUuid} ${service.uuid}")
-            for (characteristic in service.characteristics) {
-                if (characteristic.name == charName) {
-                    Log.d(TAG, "Pair Found:  ${deviceName} ${service.uuid} ${characteristic}")
-                    return characteristic
-                }
-
+        // Iterate through all configured devices to find a match
+        return config.devices.values.find { deviceConfig ->
+            // Name Match Logic
+            val nameMatches = deviceName != null && (
+                deviceConfig.name.contains(deviceName, ignoreCase = true) ||
+                deviceConfig.shortName.contains(deviceName, ignoreCase = true) ||
+                deviceName.contains(deviceConfig.name, ignoreCase = true) ||
+                deviceName.contains(deviceConfig.shortName, ignoreCase = true)
+            )
+            
+            // Address Match Logic (only if configured)
+            val addressMatches = if (deviceConfig.address != null) {
+                deviceAddress != null && deviceConfig.address.equals(deviceAddress, ignoreCase = true)
+            } else {
+                true // Config doesn't specify address, so address doesn't matter
             }
+            //Log.d(TAG, "${deviceName},${deviceAddress} Name Match: $nameMatches Address Match: $addressMatches")
+            nameMatches && addressMatches
         }
-        Log.d(TAG, "Missing Pair:  ${deviceName} ${charName}")
+    }
+
+    fun findWhiteboardSpecs(deviceName: String?, deviceAddress: String?): List<WhiteboardMeasure> {
+        Log.d(TAG, "findWhiteboardSpecs: $deviceName ${findDeviceConfig(deviceName, deviceAddress)}")
+        return findDeviceConfig(deviceName, deviceAddress)?.whiteboardMeasures ?: emptyList()
+    }
+
+    fun findConfChar(deviceName: String, charName: String, deviceAddress: String? = null): CharacteristicInfo? {
+        val deviceConfig = findDeviceConfig(deviceName, deviceAddress) ?: return null
+        deviceConfig.services.forEach { service ->
+            service.characteristics.find { it.name == charName }?.let { return it }
+        }
         return null
     }
 
-    fun findMeasurePath(deviceName: String, measureName: String ): WhiteboardMeasure? {
-        val deviceConfig = findDeviceConfig(deviceName) ?: return null
-
-        for (measure in deviceConfig.whiteboardMeasures) {
-            if (measureName == measure.name){
-                return measure
-            }
-        }
-        return null
+    fun findMeasurePath(deviceName: String, deviceAddress: String?, measureName: String): WhiteboardMeasure? {
+        return findDeviceConfig(deviceName, deviceAddress)?.whiteboardMeasures?.find { it.name == measureName }
     }
 
-    fun findServiceAndCharacteristic(deviceName: String?, serviceUuid: String, characteristicUuid: String): Pair<ServiceInfo, CharacteristicInfo>? {
-        val deviceConfig = findDeviceConfig(deviceName) ?: return null
-        //Log.i(TAG, "See if deviceName: ${deviceName} ${deviceConfig}")
-
-        for (service in deviceConfig.services) {
-            //Log.d(TAG, "See if match serviceUuid: ${serviceUuid} ${service.uuid}")
-            if (service.uuid.equals(serviceUuid, ignoreCase = true)) {
-                for (characteristic in service.characteristics) {
-                    //Log.d(TAG, "See if match characteristic: ${characteristicUuid} --> ${characteristic}")
-                    if (characteristic.uuid.equals(characteristicUuid, ignoreCase = true)) {
-                        Log.d(TAG, "Pair Found:  ${deviceName} ${serviceUuid} ${characteristic}")
-                        return Pair(service, characteristic)
-                    }
-                }
+    fun findServiceAndCharacteristic(deviceName: String?, serviceUuid: String, characteristicUuid: String, deviceAddress: String? = null): Pair<ServiceInfo, CharacteristicInfo>? {
+        val deviceConfig = findDeviceConfig(deviceName, deviceAddress) ?: return null
+        deviceConfig.services.find { it.uuid.equals(serviceUuid, ignoreCase = true) }?.let { service ->
+            service.characteristics.find { it.uuid.equals(characteristicUuid, ignoreCase = true) }?.let { char ->
+                return Pair(service, char)
             }
         }
         return null
@@ -160,27 +177,18 @@ class DeviceConfigurationManager private constructor(context: Context) {
 
     fun findCharacteristicByUuid(characteristicUuid: String): CharacteristicInfo? {
         val config = getDeviceConfiguration() ?: return null
-
-        // Search through all devices, services, and characteristics
-        for (device in config.devices.values) {
-            for (service in device.services) {
-                for (characteristic in service.characteristics) {
-                    if (characteristic.uuid.equals(characteristicUuid, ignoreCase = true)) {
-                        Log.d(TAG, "Found characteristic by UUID: ${characteristic.name} (${characteristicUuid})")
-                        return characteristic
-                    }
-                }
+        config.devices.values.forEach { device ->
+            device.services.forEach { service ->
+                service.characteristics.find { it.uuid.equals(characteristicUuid, ignoreCase = true) }?.let { return it }
             }
         }
         return null
     }
     
-    fun parseCharacteristicData(characteristicInfo: CharacteristicInfo, data: ByteArray, deviceName: String? = null, deviceAddress: String? = null): Any? {
-        val config = getDeviceConfiguration() ?: return null
-        if (characteristicInfo.structParser!=null){
+    fun parseCharacteristicData(characteristicInfo: CharacteristicInfo, data: ByteArray): Any? {
+        if (characteristicInfo.structParser != null) {
             return GenericStructParser(characteristicInfo.structParser).unpack(data)
         }
-        val dataTypeInfo = config.dataTypes[characteristicInfo.dataType]
         return when (characteristicInfo.dataType) {
             "4_byte_double" -> BleDataParsers.parse4ByteDouble(data)
             "4_byte_integer" -> BleDataParsers.parse4ByteInteger(data)
@@ -197,249 +205,9 @@ class DeviceConfigurationManager private constructor(context: Context) {
         }
     }
 
-    private fun loadConfigFromStorage() {
-        val jsonString = sharedPreferences.getString(KEY_DEVICE_CONFIG, null)
-        if (jsonString != null) {
-            currentConfig = deserializeFromJson(jsonString)
-        }
-    }
-    
-    private fun serializeToJson(config: DeviceConfiguration): String {
-        try {
-            val json = JSONObject()
-
-            // Serialize devices
-            val devicesJson = JSONObject()
-            config.devices.forEach { (key, device) ->
-                val deviceJson = JSONObject().apply {
-                    put("name", device.name)
-                    put("shortName", device.shortName)
-
-                    val servicesArray = JSONArray()
-                    device.services.forEach { service ->
-                        val serviceJson = JSONObject().apply {
-                            put("uuid", service.uuid)
-                            put("name", service.name)
-
-                            val characteristicsArray = JSONArray()
-                            service.characteristics.forEach { characteristic ->
-                                val charJson = JSONObject().apply {
-                                    put("uuid", characteristic.uuid)
-                                    put("name", characteristic.name)
-                                    put("dataType", characteristic.dataType)
-                                    put("mqttTopic", characteristic.mqttTopic)
-                                    characteristic.customParser?.let { put("customParser", it) }
-                                    characteristic.structParser?.let { parserConfig ->
-                                        val parserJson = JSONObject()
-                                        parserJson.put("endianness", parserConfig.endianness)
-
-                                        val fieldsArray = JSONArray()
-                                        parserConfig.fields.forEach { field ->
-                                            val fieldJson = JSONObject()
-                                            fieldJson.put("name", field.name)
-                                            fieldJson.put("type", field.type)
-                                            fieldsArray.put(fieldJson)
-                                        }
-                                        parserJson.put("fields", fieldsArray)
-
-                                        put("structParser", parserJson)
-                                    }
-                                }
-                                Log.i(TAG,"${charJson}");
-                                characteristicsArray.put(charJson)
-                            }
-                            put("characteristics", characteristicsArray)
-                        }
-                        servicesArray.put(serviceJson)
-                    }
-                    put("services", servicesArray)
-                }
-                // Add this block to serialize whiteboard measures
-                if (device.whiteboardMeasures.isNotEmpty()) {
-                    val wbJson = JSONObject()
-                    val measuresArray = JSONArray()
-                    device.whiteboardMeasures.forEach { measure ->
-                        val measureJson = JSONObject()
-                        measureJson.put("name", measure.name)
-                        measureJson.put("path", measure.path)
-                        measureJson.put("mqttTopic", measure.mqttTopic)
-
-                        val methodsArray = JSONArray()
-                        measure.methods.forEach { method ->
-                            methodsArray.put(method)
-                        }
-                        measureJson.put("methods", methodsArray)
-
-                        measuresArray.put(measureJson)
-                    }
-                    wbJson.put("measures", measuresArray)
-
-                    // IMPORTANT: The key here must match what deserialize expects ("movesense_whiteboard")
-                    deviceJson.put("movesense_whiteboard", wbJson)
-                }
-
-                devicesJson.put(key, deviceJson)
-            }
-            json.put("devices", devicesJson)
-
-            // Serialize dataTypes
-            val dataTypesJson = JSONObject()
-            config.dataTypes.forEach { (key, dataType) ->
-                val dataTypeJson = JSONObject().apply {
-                    put("size", dataType.size)
-                    put("conversion", dataType.conversion)
-                    dataType.description?.let { put("description", it) }
-                }
-                dataTypesJson.put(key, dataTypeJson)
-            }
-            json.put("dataTypes", dataTypesJson)
-
-            return json.toString()
-        } catch (e: Exception) {
-            Log.e(TAG, "Error serializing config to JSON: ${e.message}")
-            return "{}"
-        }
-    }
-
-    private fun deserializeFromJson(jsonString: String): DeviceConfiguration? {
-        try {
-            val json = JSONObject(jsonString)
-
-            // Deserialize devices
-            val devices = mutableMapOf<String, DeviceInfo>()
-            val devicesJson = json.optJSONObject("devices")
-            devicesJson?.keys()?.forEach { deviceKey ->
-                val deviceJson = devicesJson.getJSONObject(deviceKey)
-
-                val services = mutableListOf<ServiceInfo>()
-                val servicesArray = deviceJson.optJSONArray("services")
-                servicesArray?.let { array ->
-                    for (i in 0 until array.length()) {
-                        val serviceJson = array.getJSONObject(i)
-
-                        val characteristics = mutableListOf<CharacteristicInfo>()
-                        val characteristicsArray = serviceJson.optJSONArray("characteristics")
-
-                        characteristicsArray?.let { charArray ->
-                            for (j in 0 until charArray.length()) {
-                                val charJson = charArray.getJSONObject(j)
-                                // Parse the StructParserConfig if it exists
-                                val structParserJson = charJson.optJSONObject("structParser")
-                                var structParserConfig: StructParserConfig? = null
-
-                                if (structParserJson != null) {
-                                    val fieldsList = mutableListOf<StructField>()
-                                    val fieldsArray = structParserJson.optJSONArray("fields")
-
-                                    if (fieldsArray != null) {
-                                        for (k in 0 until fieldsArray.length()) {
-                                            val fieldObj = fieldsArray.getJSONObject(k)
-                                            fieldsList.add(
-                                                StructField(
-                                                    name = fieldObj.getString("name"),
-                                                    type = fieldObj.getString("type")
-                                                )
-                                            )
-                                        }
-                                    }
-
-                                    structParserConfig = StructParserConfig(
-                                        endianness = structParserJson.optString("endianness", "LITTLE_ENDIAN"),
-                                        fields = fieldsList
-                                    )
-                                }
-                                characteristics.add(
-                                    CharacteristicInfo(
-                                        uuid = charJson.getString("uuid"),
-                                        name = charJson.getString("name"),
-                                        dataType = charJson.optString("dataType"),
-                                        mqttTopic = charJson.getString("mqttTopic"),
-                                        customParser = charJson.optString("customParser")
-                                            .takeIf { it.isNotEmpty() },
-                                        structParser = structParserConfig
-                                    )
-                                )
-                            }
-                        }
-
-                        services.add(
-                            ServiceInfo(
-                                uuid = serviceJson.getString("uuid"),
-                                name = serviceJson.getString("name"),
-                                characteristics = characteristics
-                            )
-                        )
-                    }
-                }
-                // used by Movesense
-                val whiteboardMeasures = mutableListOf<WhiteboardMeasure>()
-                val movesenseWhiteboard = deviceJson.optJSONObject("movesense_whiteboard")
-                if (movesenseWhiteboard != null) {
-                    val movesenseWhiteboardMeasuredArray = movesenseWhiteboard.optJSONArray("measures")
-                    movesenseWhiteboardMeasuredArray?.let { array ->
-                        for (i in 0 until array.length()) {
-                            val measure = array.getJSONObject(i)
-                            val methodsList = mutableListOf<String>()
-
-                            val methodsJsonArray = measure.optJSONArray("methods")
-                            if (methodsJsonArray != null) {
-                                for (k in 0 until methodsJsonArray.length()) {
-                                    methodsList.add(methodsJsonArray.getString(k))
-                                }
-                            }
-                            whiteboardMeasures.add(
-                                WhiteboardMeasure(
-                                    name = measure.getString("name"),
-                                    methods = methodsList,
-                                    path = measure.getString("path"),
-                                    mqttTopic = measure.getString("mqttTopic")
-                                )
-                            )
-                        }
-                    }
-                }
-
-
-                devices[deviceKey] = DeviceInfo(
-                    name = deviceJson.getString("name"),
-                    shortName = deviceJson.getString("shortName"),
-                    services = services,
-                    whiteboardMeasures = whiteboardMeasures,
-
-                )
-            }
-
-            // Deserialize dataTypes
-            val dataTypes = mutableMapOf<String, DataTypeInfo>()
-//            val dataTypesJson = json.optJSONObject("dataTypes")
-//            dataTypesJson?.keys()?.forEach { dataTypeKey ->
-//                val dataTypeJson = dataTypesJson.getJSONObject(dataTypeKey)
-//                dataTypes[dataTypeKey] = DataTypeInfo(
-//                    size = dataTypeJson.getString("size"),
-//                    conversion = dataTypeJson.getString("conversion"),
-//                    description = dataTypeJson.optString("description").takeIf { it.isNotEmpty() }
-//                )
-//            }
-
-            return DeviceConfiguration(devices = devices, dataTypes = dataTypes)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error deserializing config from JSON: ${e.message}")
-            return null
-        }
-    }
-    
     companion object {
         private const val TAG = "DeviceConfigManager"
         private const val PREFS_NAME = "device_config"
         private const val KEY_DEVICE_CONFIG = "device_configuration"
-        
-        @Volatile
-        private var INSTANCE: DeviceConfigurationManager? = null
-        
-        fun getInstance(context: Context): DeviceConfigurationManager {
-            return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: DeviceConfigurationManager(context).also { INSTANCE = it }
-            }
-        }
     }
 }

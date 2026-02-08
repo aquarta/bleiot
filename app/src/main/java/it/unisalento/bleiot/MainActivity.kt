@@ -16,11 +16,15 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.core.app.ActivityCompat
+import dagger.hilt.android.AndroidEntryPoint
 import it.unisalento.bleiot.ui.theme.BleNotificationTheme
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     private val viewModel: BleViewModel by viewModels()
+    @Inject lateinit var deviceConfigManager: DeviceConfigurationManager
 
     // Request for Bluetooth permissions
     private val requestMultiplePermissions = registerForActivityResult(
@@ -28,9 +32,27 @@ class MainActivity : ComponentActivity() {
     ) { permissions ->
         if (permissions.entries.all { it.value }) {
             // All permissions granted
-            viewModel.startScan()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                    requestBackgroundLocationPermission.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                } else {
+                    viewModel.startScan()
+                }
+            } else {
+                viewModel.startScan()
+            }
         } else {
             viewModel.updateStatus("Permissions denied")
+        }
+    }
+
+    private val requestBackgroundLocationPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.startScan()
+        } else {
+            viewModel.updateStatus("Background location permission denied")
         }
     }
 
@@ -55,9 +77,6 @@ class MainActivity : ComponentActivity() {
         // Initialize device configuration early
         initializeDeviceConfiguration()
 
-        // Initialize the ViewModel with context
-        viewModel.initialize(this)
-
         // Start and bind to the service
         startAndBindService()
 
@@ -66,7 +85,7 @@ class MainActivity : ComponentActivity() {
                 MainScreenWithMenu(
                     uiState = viewModel.uiState,
                     onScanButtonClick = {
-                        if (viewModel.uiState.value.scanButtonText == "Start Scan") {
+                        if (viewModel.uiState.value.scanButtonText == "Start Scan" || viewModel.uiState.value.scanButtonText == "Inizia Esperimento") {
                             checkPermissionsAndStartScan()
                         } else {
                             viewModel.stopScan()
@@ -125,17 +144,28 @@ class MainActivity : ComponentActivity() {
     private fun checkPermissionsAndStartScan() {
         val permissionsToRequest = mutableListOf<String>()
 
+        // For Android 13+ (API 33+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
         // For Android 12+ (API 31+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             permissionsToRequest.add(Manifest.permission.BLUETOOTH_SCAN)
             permissionsToRequest.add(Manifest.permission.BLUETOOTH_CONNECT)
         }
 
+        // For Android 10+ (API 29+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            permissionsToRequest.add(Manifest.permission.ACCESS_FINE_LOCATION)
+            permissionsToRequest.add(Manifest.permission.ACCESS_COARSE_LOCATION)
+        }
+
         // For older Android versions
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
             permissionsToRequest.add(Manifest.permission.BLUETOOTH)
-            permissionsToRequest.add(Manifest.permission.ACCESS_FINE_LOCATION)
-            permissionsToRequest.add(Manifest.permission.ACCESS_COARSE_LOCATION)
+            //permissionsToRequest.add(Manifest.permission.ACCESS_FINE_LOCATION)
+            //permissionsToRequest.add(Manifest.permission.ACCESS_COARSE_LOCATION)
         }
 
         // Request permissions if needed
@@ -148,7 +178,6 @@ class MainActivity : ComponentActivity() {
 
     private fun initializeDeviceConfiguration() {
         try {
-            val deviceConfigManager = DeviceConfigurationManager.getInstance(this)
             val existingConfig = deviceConfigManager.getDeviceConfiguration()
 
             if (existingConfig == null) {
