@@ -1,7 +1,8 @@
 devices:
   MoveSense:
-    name: "MoveSense"
-    shortName: "MoveSense"
+    name: "Movesense"
+    shortName: "Movesense"
+    address: "0C:8C:DC:41:E2:7B"
     services:
       #      - uuid: "0000180d-0000-1000-8000-00805f9b34fb"
       #        name: "Heart Rate Service"
@@ -21,17 +22,6 @@ devices:
               fields:
                 - name: "battery_level"
                   type: "byte"
-      # - uuid: "34802252-7185-4d5d-b431-630e7050e8f0"
-      #   name : "Movesense GattSensorData Service"
-      #   characteristics:
-      #     # Available GattSensorData protocol measures:
-      #     # - ECG
-      #     # - IMU9
-      #     - uuid: "34800001-7185-4d5d-b431-630e7050e8f0"
-      #       name: "Movesense GSD Write Char"
-      #     - uuid: "34800002-7185-4d5d-b431-630e7050e8f0"
-      #       name: "Movesense GSD Read Char"
-      #       mqttTopic: "ble/movesense"
     movesense_whiteboard:
       measures:
         - name: Temp
@@ -90,7 +80,7 @@ devices:
             - subscribe
           path: /Meas/ECG/125
           mqttTopic: ble/movesense/ECG
-          jsonArrayParser: 
+          jsonArrayParser:
             arrayPath: Body.Samples
             fields:
               - name: value
@@ -110,6 +100,7 @@ devices:
   ZephyrTemperature:
     name: "ZephyrTemperature"
     shortName: "ZephyrTemperature"
+    address: "00:00:00:00:00:00"
     services:
       - uuid: "0000180f-0000-1000-8000-00805f9b34fb"
         name: "Battery Service"
@@ -132,6 +123,7 @@ devices:
   BlueNRGLP:
     name: "BlueNRGLP"
     shortName: "BlueNRGLP"
+    address: "00:00:00:00:00:01"
     services:
       - uuid: "00000000-0001-11e1-9ab4-0002a5d5c51b"
         name: "BLUENRG_MS_SERVICE"
@@ -168,28 +160,10 @@ devices:
                   type: "short"
                 - name: "gyroz"
                   type: "short"
-  BLPSMS005:
-    name: "BLPSMS005"
-    shortName: "BLPSMS005"
-    services:
-      - uuid: "00000000-0001-11e1-9ab4-0002a5d5c51b"
-        name: "BLUENRG_MS_SERVICE"
-        characteristics:
-          - uuid: "00140000-0001-11e1-ac36-0002a5d5c51b"
-            name: "ST BLE TEMP"
-            mqttTopic: "ble/dummylp/temperature"
-            structParser:
-              endianness: "LITTLE_ENDIAN"
-              fields:
-                - name: "stimestamp"
-                  type: "ushort"
-                - name: "pressure"
-                  type: "int"
-                - name: "temperature"
-                  type: "short"
-  BLPSMS:
-    name: "BLPSMS"
-    shortName: "BLPSMS"
+  BLPSMS003:
+    name: "BLPSMS003"
+    shortName: "BLPSMS003"
+    address: "C2:80:E1:00:7A:03"
     services:
       - uuid: "00000000-0001-11e1-9ab4-0002a5d5c51b"
         name: "BLUENRG_MS_SERVICE"
@@ -229,6 +203,7 @@ devices:
   "BLEPnP":
     name: "BLEPnP"
     shortName: "BLEPnP"
+    address: "DC:0D:84:0F:45:EB"
     services:
       - uuid: "00000000-0001-11e1-9ab4-0002a5d5c51b"
         name: "FEATURES_SERVICE"
@@ -288,6 +263,7 @@ devices:
   "BCN-002":
     name: "BCN-002"
     shortName: "BCN-002"
+    address: "FC:9A:10:9E:79:4D"
     services:
       - uuid: "00000000-0001-11e1-9ab4-0002a5d5c51b"
         name: "FEATURES_SERVICE"
@@ -295,7 +271,65 @@ devices:
           - uuid: "00020000-0001-11e1-ac36-0002a5d5c51b"
             name: "BATTERY_CHAR"
             mqttTopic: "ble/battery"
-            structParser: 
+            structParser:
+              endianness: "LITTLE_ENDIAN"
+              fields:
+                - name: "timestamp"
+                  type: "ushort"
+                - name: "battery_level"
+                  type: "short"
+          - uuid: "001c0000-0001-11e1-ac36-0002a5d5c51b"
+            name: "TEMPERATURE AND HUMIDITY"
+            mqttTopic: "ble/temperature"
+            structParser:
+              endianness: "LITTLE_ENDIAN"
+              fields:
+                - name: "stimestamp"
+                  type: "ushort"
+                - name: "pressure"
+                  type: "int"
+                - name: "humidity"
+                  type: "short"
+                - name: "temperature"
+                  type: "short"
+          - uuid: "00e00000-0001-11e1-ac36-0002a5d5c51b"
+            name: "ST BLE B2 IMU"
+            mqttTopic: "ble/dummy/imu"
+            structParser:
+              endianness: "LITTLE_ENDIAN"
+              fields:
+                - name: "stimestamp"
+                  type: "ushort"
+                - name: "accx"
+                  type: "short"
+                - name: "accy"
+                  type: "short"
+                - name: "accz"
+                  type: "short"
+                - name: "gyrox"
+                  type: "short"
+                - name: "gyroy"
+                  type: "short"
+                - name: "gyroz"
+                  type: "short"
+                - name: "magx"
+                  type: "short"
+                - name: "magy"
+                  type: "short"
+                - name: "magz"
+                  type: "short"
+  "BCN-002":
+    name: "BCN-002"
+    shortName: "BCN-002"
+    address: "DC:0D:84:0F:45:EB"
+    services:
+      - uuid: "00000000-0001-11e1-9ab4-0002a5d5c51b"
+        name: "FEATURES_SERVICE"
+        characteristics:
+          - uuid: "00020000-0001-11e1-ac36-0002a5d5c51b"
+            name: "BATTERY_CHAR"
+            mqttTopic: "ble/battery"
+            structParser:
               endianness: "LITTLE_ENDIAN"
               fields:
                 - name: "timestamp"
