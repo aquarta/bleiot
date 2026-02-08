@@ -143,7 +143,7 @@ class DeviceConfigurationManager @Inject constructor(@ApplicationContext private
             } else {
                 true // Config doesn't specify address, so address doesn't matter
             }
-
+            //Log.d(TAG, "${deviceName},${deviceAddress} Name Match: $nameMatches Address Match: $addressMatches")
             nameMatches && addressMatches
         }
     }

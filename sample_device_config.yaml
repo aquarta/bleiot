@@ -260,7 +260,7 @@ devices:
                   type: "short"
                 - name: "magz"
                   type: "short"
-  "BCN-002":
+  "BCN-002-1":
     name: "BCN-002"
     shortName: "BCN-002"
     address: "FC:9A:10:9E:79:4D"
@@ -318,10 +318,10 @@ devices:
                   type: "short"
                 - name: "magz"
                   type: "short"
-  "BCN-002":
+  "BCN-002-2":
     name: "BCN-002"
     shortName: "BCN-002"
-    address: "DC:0D:84:0F:45:EB"
+    address: "C7:09:3F:52:2A:94"
     services:
       - uuid: "00000000-0001-11e1-9ab4-0002a5d5c51b"
         name: "FEATURES_SERVICE"
