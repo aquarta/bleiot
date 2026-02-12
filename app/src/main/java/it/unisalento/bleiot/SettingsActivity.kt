@@ -272,7 +272,7 @@ fun SettingsScreen(
                             ) {
                                 experiments.forEach { experiment ->
                                     DropdownMenuItem(
-                                        text = { Text(experiment.id) },
+                                        text = { Text(experiment.experimentName) },
                                         onClick = {
                                             selectedExperiment = experiment
                                             experimentSettings.saveSelectedExperimentId(experiment.id)
