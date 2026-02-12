@@ -257,7 +257,7 @@ fun SettingsScreen(
                             modifier = Modifier.weight(1f)
                         ) {
                             OutlinedTextField(
-                                value = selectedExperiment?.id ?: "",
+                                value = selectedExperiment?.experimentName ?: "",
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text("Select Experiment") },
