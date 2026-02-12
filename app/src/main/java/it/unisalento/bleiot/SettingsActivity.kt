@@ -38,7 +38,7 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class SettingsActivity : ComponentActivity() {
-    
+
     private var bleService: BleAndMqttService? = null
     private var serviceBound = false
     @Inject lateinit var remoteConfigManager: RemoteConfigManager
@@ -144,6 +144,7 @@ fun SettingsScreen(
     remoteConfigManager: RemoteConfigManager
 ) {
     val context = LocalContext.current
+    val TAG = "SettingsScreen"
     val scope = rememberCoroutineScope()
     val mqttSettings = remember { MqttSettings.getInstance(context) }
     val experimentSettings = remember { ExperimentSettings.getInstance(context) }
@@ -231,10 +232,12 @@ fun SettingsScreen(
                                 experimentSettings.saveExperimentServerUrl(experimentServerUrl)
                                 scope.launch {
                                     try {
+                                        Log.i(TAG, "Try to get experiment")
                                         experiments = remoteConfigManager.getExperiments(experimentServerUrl)
+                                        Log.i(TAG, "Experiments: ${experiments}")
                                     } catch (e: Exception) {
                                         // Handle error
-                                        Log.e("SettingsScreen", "Error fetching experiments", e)
+                                        Log.e(TAG, "Error fetching experiments", e)
                                     }
                                 }
                             },
@@ -284,6 +287,7 @@ fun SettingsScreen(
                                 scope.launch {
                                     selectedExperiment?.let {
                                         val config = remoteConfigManager.getExperimentConfig(experimentServerUrl, it.id)
+                                        Log.i(TAG,"Set config ${config}")
                                         // TODO: Do something with the config
                                     }
                                 }

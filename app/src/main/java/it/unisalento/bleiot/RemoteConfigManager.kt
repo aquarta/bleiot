@@ -23,8 +23,8 @@ class RemoteConfigManager @Inject constructor(
     private val deviceConfigManager: DeviceConfigurationManager
 ) {
     private val TAG = "RemoteConfigManager"
-    private val GET_EXPERIMENTS_REST_PATH = "config/experiments"
-    private val GET_EXPERIMENT_CONFIG_PATH = "config/experiment"
+    private val GET_EXPERIMENTS_REST_PATH = "experiment"
+    private val GET_EXPERIMENT_CONFIG_PATH = "experiment/yaml"
     private val KEY_RAW_YAML = "raw_yaml"
     private val KEY_LAST_UPDATE = "last_update"
     private val PREFS_NAME = "remote_config"
