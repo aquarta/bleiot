@@ -116,7 +116,6 @@ class BleViewModel @Inject constructor(
                     devicesList = devices.values
                         .filter { deviceState ->
                             if (showOnlyKnown) {
-                                Log.d(TAG, "Filtering device: ${deviceState.name} ${deviceState.address} result: ${deviceConfigManager.findDeviceConfig(deviceState.name, deviceState.address)}")
                                 deviceConfigManager.findDeviceConfig(deviceState.name, deviceState.address) != null
                             } else {
                                 true
@@ -233,7 +232,13 @@ class BleViewModel @Inject constructor(
                 return
             }
 
-            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+            val hasScanPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
+            } else {
+                ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                    ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+            }
+            if (!hasScanPermission) {
                 repository.updateStatus("Bluetooth scan permission denied")
                 return
             }
