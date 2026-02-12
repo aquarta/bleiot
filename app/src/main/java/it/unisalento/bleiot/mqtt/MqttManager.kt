@@ -2,6 +2,7 @@ package it.unisalento.bleiot.mqtt
 
 import android.content.Context
 import android.util.Log
+import android.webkit.URLUtil
 import it.unisalento.bleiot.MqttSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +29,9 @@ class MqttManager @Inject constructor(@ApplicationContext private val context: C
         scope.launch(Dispatchers.IO) {
             try {
                 val config = mqttSettings.getMqttConfig()
+                if (!URLUtil.isValidUrl("${config.server}:${config.port}")) {
+                    return@launch
+                }
                 val serverUri = "tcp://${config.server}:${config.port}"
 
                 mqttClient = MqttClient(
@@ -87,7 +91,7 @@ class MqttManager @Inject constructor(@ApplicationContext private val context: C
         }
     }
 
-    fun isConnected(): Boolean = mqttClient?.isConnected == true
+    //fun isConnected(): Boolean = mqttClient?.isConnected == true
 
     // MqttCallbackExtended implementation
     override fun connectComplete(reconnect: Boolean, serverURI: String?) {
