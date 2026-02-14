@@ -29,9 +29,9 @@ class MqttManager @Inject constructor(@ApplicationContext private val context: C
         scope.launch(Dispatchers.IO) {
             try {
                 val config = mqttSettings.getMqttConfig()
-                if (!URLUtil.isValidUrl("${config.server}:${config.port}")) {
-                    return@launch
-                }
+//                if (!URLUtil.isValidUrl("${config.server}:${config.port}")) {
+//                    return@launch
+//                }
                 val serverUri = "tcp://${config.server}:${config.port}"
 
                 mqttClient = MqttClient(
