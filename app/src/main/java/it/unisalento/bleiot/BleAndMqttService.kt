@@ -202,6 +202,14 @@ class BleAndMqttService : Service() {
                 val charName = intent.getStringExtra(EXTRA_CHARACTERISTIC_NAME)
                 if (address != null && charName != null) disableNotifications(address, charName)
             }
+
+        ACTION_READ_CHAR -> {
+            val address = intent.getStringExtra(EXTRA_DEVICE_ADDRESS)
+            val charUuid = intent.getStringExtra(EXTRA_CHARACTERISTIC_NAME)
+             if (address != null && charUuid != null) {
+                              readCharacteristic(address, charUuid)
+             }
+            }
             ACTION_ENABLE_WHITEBOARD_SUBSCRIBE -> {
                 val address = intent.getStringExtra(EXTRA_DEVICE_ADDRESS)
                 val measureName = intent.getStringExtra(EXTRA_WHITEBOARD_MEASURE)
@@ -243,6 +251,26 @@ class BleAndMqttService : Service() {
             }
         }
     }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    private fun readCharacteristic(address: String, charName: String) {
+            val gatt = bleManager.getGatt(address) ?: return
+            val characteristicInfo = deviceConfigManager.findConfChar(gatt.device.name, charName, address)
+            if (characteristicInfo == null) {
+                    Log.w(TAG, "Characteristic $charName not found for $address $gatt.device.name)")
+                    return
+                }
+            for (gattservice in gatt.services) {
+                    for (characteristic in gattservice.characteristics) {
+                            if (characteristic.uuid.toString() == characteristicInfo.uuid) {
+                                    val res = gatt.readCharacteristic(characteristic)
+                                    if (!res){
+                                            Log.e(TAG, "Error reading ${characteristicInfo.name}")
+                                        }
+                               }
+                        }
+                }
+        }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     private fun disableNotifications(address: String, charName: String) {
