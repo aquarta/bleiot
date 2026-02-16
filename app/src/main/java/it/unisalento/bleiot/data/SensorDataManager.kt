@@ -34,7 +34,7 @@ class SensorDataManager @Inject constructor(
         val address = gatt.device.address
 
         val configPair = deviceConfigManager.findServiceAndCharacteristic(
-            deviceName, serviceUuid, characteristicUuid
+            deviceName, serviceUuid, characteristicUuid,gatt.device.address
         )
 
         if (configPair != null) {
